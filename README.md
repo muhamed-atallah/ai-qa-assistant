@@ -16,6 +16,19 @@ A web application that uses the latest AI models (**Claude Haiku 5.5**, **Gemini
 - **Export**: Copy as Markdown, or download as JSON, Markdown (the skill's file layout) or CSV (opens in Excel, Arabic included)
 - **Token Usage Tracking**: See the model used and input/output tokens for each generation
 
+## How It Works
+
+![How the AI Test Case Generator works: the browser sends your story to the local Express server, which adds expert QA instructions and calls the AI provider you picked](docs/architecture.png)
+
+1. You pick a mode, give a story (typed, from ClickUp, or a `.md` file), choose a model and click **Generate**
+2. The local server wraps the story in expert QA instructions and asks the AI for structured JSON
+3. It sends the request to the AI provider you picked, using that provider's API key from `.env`
+4. The AI answers with test cases (or one bug report), plus how many tokens it used
+5. The server sends the result back to your browser
+6. You review it as Formatted / Table / Raw JSON and export it as JSON, Markdown or CSV
+
+The editable source of the diagram is [`docs/architecture.excalidraw`](docs/architecture.excalidraw); open it at [excalidraw.com](https://excalidraw.com) to change it.
+
 ## Prerequisites
 
 - Node.js **22 or higher** (required by the `openai` SDK)
@@ -106,26 +119,10 @@ A sample story is included in [`example-user-story.md`](example-user-story.md).
 
 ### 3. Configure generation
 
-1. **Test Case Schema (Optional, Test Cases mode)**: Specify your preferred test case format
-   - Leave empty to use the default schema
-   - Example schema:
-   ```json
-   {
-     "testCaseId": "TC-XXX",
-     "title": "Test title",
-     "description": "Description",
-     "preconditions": [],
-     "steps": [],
-     "expectedResults": [],
-     "priority": "High/Medium/Low",
-     "type": "Functional/Integration/etc"
-   }
-   ```
+1. **Preferences (Optional)**: Override the defaults for this run
+   - Example: "Owner: QA Team", "Use the LOGIN- ID prefix", "Focus on security testing", "Write in Arabic"
 
-2. **Preferences (Optional)**: Specify additional requirements
-   - Example: "Focus on security testing", "Use BDD format"
-
-3. **AI Provider**: Pick a model. For *Any OpenRouter model*, search and choose one from the catalogue
+2. **AI Provider**: Pick a model. For *Any OpenRouter model*, search and choose one from the catalogue
 
 ### 4. Generate and export
 
@@ -140,6 +137,9 @@ ai-test-case-generator/
 ├── .env.example           # Example environment variables (copy to .env)
 ├── example-user-story.md  # Sample user story for trying the app
 ├── README.md              # This file
+├── docs/
+│   ├── architecture.png         # "How It Works" diagram
+│   └── architecture.excalidraw  # Editable source (open at excalidraw.com)
 └── public/
     ├── index.html         # Frontend interface
     ├── styles.css         # Styling
@@ -157,7 +157,6 @@ Generate test cases from a user story
 ```json
 {
   "userStory": "Your user story text",
-  "schema": "Optional custom schema",
   "preferences": "Optional preferences",
   "provider": "anthropic",
   "model": "Optional, OpenRouter model id"
@@ -168,16 +167,19 @@ Generate test cases from a user story
 ```json
 {
   "success": true,
-  "testCases": "Generated test cases (JSON array as text)",
+  "testCases": "The model's JSON reply as text: { \"analysis\": {...}, \"testCases\": [...] }",
   "model": "claude-haiku-5-5",
   "modelName": "Claude Haiku 5.5",
   "provider": "Anthropic",
   "usage": {
     "input_tokens": 1234,
     "output_tokens": 5678
-  }
+  },
+  "truncated": false
 }
 ```
+
+`truncated` is `true` when the reply hit the model's output limit and was cut off, so the JSON may be incomplete.
 
 ### POST `/api/generate-bug-report`
 Generate one bug report from an issue description
