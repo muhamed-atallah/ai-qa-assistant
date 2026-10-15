@@ -1351,4 +1351,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initClickUpTokenUI();
     updateCharCount();
     updateWorkflowStep(1);
+    document.getElementById('copyrightYear').textContent = new Date().getFullYear();
 });
