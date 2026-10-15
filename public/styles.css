@@ -1848,8 +1848,13 @@ input::placeholder {
     background: white;
     border-radius: var(--radius);
     box-shadow: var(--shadow-xl);
-    transform: translateY(-150%);
-    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    /* Hidden fully above the viewport whatever its height: its own height plus the
+       2rem top offset and room for the shadow. A percentage alone left a short toast's
+       bottom edge peeking in at the top of the page. */
+    transform: translateY(calc(-100% - 4rem));
+    visibility: hidden;
+    /* visibility flips after the slide-out finishes */
+    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), visibility 0s linear 0.4s;
     z-index: 1000;
     overflow: hidden;
     max-width: 600px;
@@ -1858,6 +1863,8 @@ input::placeholder {
 
 .notification.show {
     transform: translateY(0);
+    visibility: visible;
+    transition-delay: 0s;
 }
 
 .notification-content {
