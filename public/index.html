@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Test Case Generator</title>
+    <title>AI Test Case & Bug Report Generator</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -17,18 +17,22 @@
                         <i class="fas fa-flask"></i>
                     </div>
                     <div class="logo-text">
-                        <h1>AI Test Case Generator</h1>
-                        <p class="tagline" id="subtitle">Transform user stories into comprehensive test cases</p>
+                        <h1>AI Test Case &amp; Bug Report Generator</h1>
+                        <p class="tagline" id="subtitle">Test cases from user stories, bug reports from issue descriptions</p>
                     </div>
                 </div>
                 <div class="header-badges">
                     <span class="badge badge-ai">
                         <i class="fas fa-robot"></i>
-                        AI-Powered
+                        <span id="modelCountBadge">Multi-Model AI</span>
                     </span>
                     <span class="badge badge-feature">
-                        <i class="fas fa-bolt"></i>
-                        Instant Generation
+                        <i class="fas fa-list-check"></i>
+                        Test Cases &amp; Bug Reports
+                    </span>
+                    <span class="badge badge-feature">
+                        <i class="fas fa-table"></i>
+                        Table View &amp; Exports
                     </span>
                 </div>
             </div>
@@ -274,27 +278,28 @@ Acceptance Criteria:
                 </div>
 
                 <div class="config-grid">
-                    <!-- Schema Card -->
+                    <!-- Test Case Format Card -->
                     <div class="card glass-card" data-only-mode="testCases">
                         <div class="card-header">
-                            <h3><i class="fas fa-code"></i> Test Case Schema</h3>
-                            <span class="optional-badge">Optional</span>
+                            <h3><i class="fas fa-table-list"></i> Test Case Format</h3>
+                            <span class="optional-badge">Fixed</span>
                         </div>
-                        <textarea
-                            id="schema"
-                            placeholder="Define your custom test case format...
-
-Example:
-{
-  'testCaseId': 'TC-XXX',
-  'title': 'Test title',
-  'preconditions': [],
-  'steps': [],
-  'expectedResults': [],
-  'priority': 'High/Medium/Low'
-}"
-                            rows="6"
-                        ></textarea>
+                        <p class="format-intro">Follows the user-story-test-case-generator skill: an analysis, then these columns with one row per step.</p>
+                        <ol class="format-list">
+                            <li>Test Case ID</li>
+                            <li>Title</li>
+                            <li>Module / Feature</li>
+                            <li>Preconditions</li>
+                            <li>Tags</li>
+                            <li>Steps</li>
+                            <li>Results</li>
+                            <li>Type of Test Case</li>
+                            <li>Priority <small>(kept)</small></li>
+                            <li>Estimate</li>
+                            <li>Owner</li>
+                            <li>Automation Status</li>
+                            <li>State</li>
+                        </ol>
                     </div>
 
                     <!-- Bug Report Format Card -->
@@ -303,8 +308,8 @@ Example:
                             <h3><i class="fas fa-bug"></i> Bug Report Format</h3>
                             <span class="optional-badge">Fixed</span>
                         </div>
-                        <p class="bug-format-intro">Follows the bug-report-generator skill: these sections and nothing else.</p>
-                        <ol class="bug-format-list">
+                        <p class="format-intro">Follows the bug-report-generator skill: these sections and nothing else.</p>
+                        <ol class="format-list">
                             <li>Title</li>
                             <li>Link</li>
                             <li>Environment</li>
@@ -331,12 +336,11 @@ Examples:
 - App: Acme Shop web v2.3
 - Test environment: UAT"
                             placeholder="Add specific requirements...
-
 Examples:
-- Focus on security testing
-- Include API test cases
-- Use BDD format (Given-When-Then)
-- Add edge cases for validation"
+- Owner: Jane Doe
+- Use AUTH-TC- as the ID prefix
+- Focus on security and API coverage
+- Write the test cases in Arabic"
                             rows="6"
                         ></textarea>
                     </div>
@@ -573,7 +577,7 @@ Examples:
             <div class="footer-content">
                 <p class="footer-brand">
                     <i class="fas fa-flask"></i>
-                    AI Test Case Generator
+                    AI Test Case &amp; Bug Report Generator
                 </p>
                 <p class="footer-powered">
                     Powered by

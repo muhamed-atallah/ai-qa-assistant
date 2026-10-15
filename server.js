@@ -177,6 +177,7 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
 
     return {
       text: chatCompletion.choices[0]?.message?.content || '',
+      truncated: chatCompletion.choices[0]?.finish_reason === 'length',
       modelInfo: provider === 'openrouter' ? { ...selected, model, name: model } : selected,
       usage: {
         input_tokens: chatCompletion.usage?.prompt_tokens || 0,
@@ -194,6 +195,7 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
 
     return {
       text: result.text || '',
+      truncated: result.candidates?.[0]?.finishReason === 'MAX_TOKENS',
       modelInfo: AI_MODELS.gemini,
       usage: {
         input_tokens: result.usageMetadata?.promptTokenCount || 0,
@@ -206,7 +208,7 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
   // default for this model, so the reply can include thinking blocks before the text.
   const message = await anthropic.messages.stream({
     model: AI_MODELS.anthropic.model,
-    max_tokens: 32000,
+    max_tokens: 64000,
     system: systemPrompt,
     messages: [
       {
@@ -225,6 +227,7 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
       .filter(block => block.type === 'text')
       .map(block => block.text)
       .join(''),
+    truncated: message.stop_reason === 'max_tokens',
     modelInfo: AI_MODELS.anthropic,
     usage: {
       input_tokens: message.usage.input_tokens,
@@ -233,11 +236,12 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
   };
 }
 
-const generationInfo = ({ modelInfo, usage }) => ({
+const generationInfo = ({ modelInfo, usage, truncated }) => ({
   model: modelInfo.model,
   modelName: modelInfo.name,
   provider: modelInfo.provider,
-  usage
+  usage,
+  truncated
 });
 
 function sendGenerationError(res, error, failureMessage) {
@@ -254,42 +258,99 @@ function sendGenerationError(res, error, failureMessage) {
   });
 }
 
+// Workflow, coverage checklist and field conventions of the user-story-test-case-generator
+// skill (~/.claude/skills/user-story-test-case-generator), asked for as JSON so one reply can
+// feed the analysis, the table and every export. Priority is kept as its own field.
+const TEST_CASE_SYSTEM_PROMPT = `You are a Senior Software Tester / QA Lead. Given a user story (and any acceptance criteria, business rules, or requirements), decompose it requirement by requirement and produce exhaustive, directly usable test cases, plus a short analysis that surfaces gaps, ambiguities, hidden assumptions, and risks. A QA engineer should be able to execute the output manually or plan automation with minimal additional effort. Favor thoroughness over brevity: missing a scenario is worse than an extra one.
+
+Workflow:
+1. Read the whole input. Identify the actors, the feature or module, the trigger, the expected outcome, the data involved, and the system boundaries (frontend, backend, API, database, third parties).
+2. Decompose it into a numbered inventory of atomic, individually testable requirements (R1, R2, ...). Treat each line of each acceptance criterion and each business rule as its own requirement, and split a criterion that hides several (a field, its validation, its persistence, its permission). Every test case must trace back to at least one requirement.
+3. For every requirement, walk the coverage checklist below and generate the applicable cases.
+4. Surface what the story does not say: hidden assumptions, ambiguities, missing or conflicting requirements, and risks. For each plausible but unstated behavior, add an implied test case (tag it "implied") and record the assumption. Turn genuinely unanswerable points into open questions.
+
+Coverage checklist (each case has one primary type; secondary dimensions go in its tags):
+- Functional / Positive: each acceptance criterion with valid, typical input; each happy path end to end; one representative per valid equivalence class; default values; success feedback.
+- Negative: each required input omitted; invalid values, wrong types, malformed formats; operations in a disallowed state; graceful failure with a clear error, never a stack trace or a 500.
+- Boundary: min and max, one below min and one above max; empty, single, and maximum-size collections; zero, negative, and very large numbers; min and max string length and length+1; first and last item; date edges.
+- Validation: required vs optional enforced on the client and, separately, on the server; formats (email, phone, URL, dates, IDs); length, type, range, and precision; special characters, Unicode, whitespace, and case sensitivity; uniqueness.
+- Integration: data handed correctly between frontend, backend, database, and third parties; side effects (events, webhooks, emails, notifications, audit logs) land downstream; dependent modules update; behavior when a dependency is slow or down; regression risk to adjacent features.
+- Permission: each role's allowed and blocked actions; owner vs non-owner; horizontal (IDOR) and vertical access; unauthenticated and expired sessions; the server enforces what the UI hides.
+- Workflow / State transition: the full flow per persona; every valid transition; illegal transitions blocked; abandon, resume, refresh, and back button; concurrent actors; idempotent completion.
+- UI: layout; loading, empty, error, and success states; a meaningful browser tab title; field behavior (tab order, focus, enable/disable, inline errors); accessibility (keyboard, labels/ARIA, contrast); localization and RTL (Arabic); cross-browser rendering.
+- Responsive (mandatory for every requirement with a UI surface; type UI or Compatibility with the tag "responsive"): mobile (~375px), tablet (~768px), and desktop (~1280px) plus the reflow boundary; orientation; touch targets of about 44px; long and RTL text at the smallest width; on-screen keyboard and safe areas; 200% zoom and large fonts.
+- Security: authentication required; expired or invalid tokens rejected; privilege escalation and IDOR blocked; injection on every input that reaches a query; stored and reflected XSS neutralized; CSRF; rate limiting and brute-force protection; sensitive data kept out of responses, URLs, logs, and errors; session handling.
+- API: status codes (2xx and the relevant 400/401/403/404/409/422/429, with 5xx handled); response schema and types; required vs optional params; a consistent error body; idempotency and safe retries; pagination, sorting, and filtering; content type; auth headers.
+- Database: the stored record and its read-back; NOT NULL, unique, foreign-key, and check constraints; cascade vs restrict; soft vs hard delete; rollback on partial failure; concurrent writes without lost updates; defaults, timestamps, and audit columns.
+- Performance: response time under normal load; large datasets; concurrent requests; no N+1 or unbounded queries; heavy operations finish or stream within limits.
+- Edge / Error: null and empty data; network failure or timeout mid-operation; duplicate submission; stale data and concurrent edits; partial failure leaves the system consistent; malformed or oversized payloads rejected cleanly.
+For every requirement ask: what did the story not say, what happens when it fails halfway, who should not be able to do this, what is the smallest and largest it can be, does it persist and survive a reload, what is the API contract and how does it fail, what breaks at high volume, and does the UI hold up on a phone, a tablet, at 200% zoom, and in RTL.
+
+Per-requirement coverage floor. Wherever the layer applies, each requirement gets separate, dedicated cases:
+- Backend (the requirement has an endpoint, stores or reads data, or calls a service): at least one API case that calls the endpoint directly rather than through the UI, at least one Database case that checks the stored record and its constraints, an Integration case for each side effect, and Security cases proving the server enforces access. A Functional case driven through the UI does not count as API or Database coverage.
+- Frontend (the requirement has a screen, form, component, or visible state): at least one UI case for its states, field behavior, accessibility, and RTL; at least one responsive case; and client-side and server-side validation tested separately.
+If a layer does not apply to a requirement, say so in the assumptions or risks instead of leaving it out silently. Thin stories get more inferred cases, not fewer.
+
+Field conventions:
+- testCaseId: TC-001, TC-002, ... zero-padded, sequential, and unique.
+- title: a concise "action → outcome", e.g. "Reject password shorter than 8 chars".
+- moduleFeature: the module, screen, or endpoint under test, taken from the story.
+- preconditions: what must be true before step 1 (state, seeded data, role or session, feature flags).
+- tags: comma-separated, lowercase, with no "@" prefix: the secondary dimensions (e.g. smoke, negative, security, api, responsive, implied) and the requirement IDs the case covers (e.g. R1). Priority has its own field, so do not put P1/P2/P3 in tags.
+- priority: High (critical path, security, or data loss), Medium, or Low.
+- steps: one discrete action per step, so a case usually has 3 to 6 steps (set up or navigate, act, then verify each observable outcome, such as the stored record or the email sent). Each step is imperative ("Enter ...", "Send POST ...", "Verify ...") and paired with its specific, verifiable expected result (an exact message, status code, stored state, or UI change), never "works correctly". The last step's result is the overall pass condition. Do not number the steps.
+- typeOfTestCase: one of Functional, UI, API, Database, Integration, Security, Performance, Validation, Negative, Boundary, Permission, Workflow, Usability, Compatibility, Smoke, Regression.
+- estimate: junior-paced manual execution time for that one case, including setup and one re-run on failure, e.g. "3m", "5m", "10m". Estimate generously.
+- owner: "Mohamed Atallah" unless the user names another owner.
+- automationStatus: Not Automated, To Be Automated, Automated, or Not Applicable. Default To Be Automated; use Not Applicable for inherently manual cases.
+- state: Draft, Ready for Review, Approved, or Deprecated. Default Draft.
+
+Quality bar: every requirement has at least one positive case and, where it can fail, at least one negative or validation case. Be specific and executable, so a different tester reaches the same verdict. No duplicates and no filler. When unsure, generate the case and flag the assumption. Map Gherkin scenarios to cases and add the negative, boundary, and security variants Gherkin usually omits. If the user provides their own field values or picklists, follow theirs. If the user writes in Arabic or mixes Arabic and English, mirror their language in the content while keeping the JSON keys in English. Keep the wording of every value terse: short imperative phrases, not long multi-clause sentences. Terse applies to the wording, never to the number of steps or cases.
+
+Return only a JSON object in this shape:
+{
+  "analysis": {
+    "storyTitle": "short name of the story",
+    "requirementInventory": [{ "id": "R1", "requirement": "...", "source": "AC1" }],
+    "assumptions": ["..."],
+    "openQuestions": ["a direct question for the story author"],
+    "risks": ["a missing requirement or risk area to cover"]
+  },
+  "testCases": [
+    {
+      "testCaseId": "TC-001",
+      "title": "...",
+      "moduleFeature": "...",
+      "preconditions": "...",
+      "tags": "smoke, functional, R1",
+      "priority": "High",
+      "steps": [{ "step": "Navigate to the login page", "result": "Login form is displayed" }],
+      "typeOfTestCase": "Functional",
+      "estimate": "3m",
+      "owner": "Mohamed Atallah",
+      "automationStatus": "To Be Automated",
+      "state": "Draft"
+    }
+  ]
+}
+The output must be valid JSON that parses as-is: no comments, no trailing commas, and no code or expressions. Write every value out literally; for long or generated test data, describe it in words (for example "a 256-character password") instead of writing an expression like "a" * 256, and describe injection or script payloads in words instead of writing them raw.`;
+
 // Test case generation endpoint
 app.post('/api/generate-test-cases', async (req, res) => {
   try {
-    const { userStory, schema, preferences, provider, model } = req.body;
+    const { userStory, preferences, provider, model } = req.body;
 
     if (!userStory) {
       return res.status(400).json({ error: 'User story is required' });
     }
 
-    // Build the prompts
-    const systemPrompt = `You are an expert software tester and QA engineer. Your task is to generate comprehensive test cases based on user stories.
-
-${schema ? `Use the following test case schema:\n${schema}\n` : ''}
-
-Generate test cases that include:
-- Test Case ID
-- Test Case Title
-- Description
-- Preconditions
-- Test Steps
-- Expected Results
-- Test Data (if applicable)
-- Priority (High/Medium/Low)
-- Test Type (Functional/Non-functional/Integration/etc.)
-
-Format the output as a structured JSON array of test cases. The output must be valid JSON that parses as-is: no comments, no trailing commas, and no code or expressions. Write every value out literally; for long or generated test data, describe it in words (for example "a 256-character password") instead of writing an expression like "a" * 256.`;
-
-    const userPrompt = `Generate detailed test cases for the following user story:
+    const userPrompt = `Generate test cases for the following user story:
 
 ${userStory}
 
-${preferences ? `Additional preferences:\n${preferences}\n` : ''}
+${preferences ? `Additional preferences:\n${preferences}\n` : ''}`;
 
-Please provide comprehensive test cases covering positive scenarios, negative scenarios, edge cases, and any relevant boundary conditions.`;
-
-    const result = await generateText({ provider, model, systemPrompt, userPrompt });
+    const result = await generateText({ provider, model, systemPrompt: TEST_CASE_SYSTEM_PROMPT, userPrompt });
 
     res.json({
       success: true,

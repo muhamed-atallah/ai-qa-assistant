@@ -1,19 +1,19 @@
-# AI Test Case Generator
+# AI Test Case & Bug Report Generator
 
 A web application that uses the latest AI models (**Claude Haiku 5.5**, **Gemini 3.8 Flash**, **GPT-OSS 120B**, and 460+ models via **OpenRouter**) to generate comprehensive test cases from user stories, and professional bug reports from issue descriptions.
 
 ## Features
 
-- **Test Case Generation**: Turns a user story into structured test cases covering positive, negative, edge and boundary scenarios
+- **Test Case Generation**: Turns a user story into test cases in the user-story-test-case-generator skill's format: a Part 1 analysis (requirement inventory, assumptions, open questions, risks, coverage summary and time estimate) and a Part 2 table in the skill's 12-column, one-row-per-step layout, plus a Priority column (High/Medium/Low)
 - **Bug Report Mode**: Switch to *Bug Report* to turn an issue description into one bug report in the bug-report-generator skill's format (Title, Link, Environment, Steps to Reproduce, Actual/Expected Result, API Evidence for backend bugs, Severity, Priority)
 - **Multiple Input Methods**:
   - **Manual Input**: Type or paste text directly (or click *Load Example*)
   - **ClickUp Import**: Import a user story directly from a ClickUp task
   - **File Upload**: Upload a markdown (`.md`) file
 - **Multi-Model Support**: Claude Haiku 5.5, Gemini 3.8 Flash, GPT-OSS (120B & 20B), Qwen 3.8, and via OpenRouter: Grok 4.7, GPT-6.1 Sol Pro, DeepSeek V4.1 Flash, Kimi K3, or any model from a searchable picker. Only providers with a configured API key are shown
-- **Customizable Schema**: Define your own test case schema format
-- **Three Result Views**: Formatted, Table (spreadsheet-style grid of every field) and Raw JSON
-- **Export**: Copy to clipboard, or download as JSON, Markdown or CSV
+- **Preferences**: Override the defaults per run, e.g. owner, test case ID prefix, coverage focus or language
+- **Three Result Views**: Formatted, Table (spreadsheet-style grid in the template layout) and Raw JSON
+- **Export**: Copy as Markdown, or download as JSON, Markdown (the skill's file layout) or CSV (opens in Excel, Arabic included)
 - **Token Usage Tracking**: See the model used and input/output tokens for each generation
 
 ## Prerequisites

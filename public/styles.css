@@ -1295,14 +1295,139 @@ input::placeholder {
     background: white;
 }
 
-/* Bug report format card (Step 2) */
-.bug-format-intro {
+/* Test cases: Part 1 analysis (collapsible) */
+.analysis {
+    background: white;
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.analysis summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 1rem;
+    cursor: pointer;
+}
+
+.analysis-heading {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.analysis-stats {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.analysis h4 {
+    margin: 1.25rem 0 0.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.analysis ul,
+.analysis ol {
+    padding-left: 1.25rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
+.analysis-requirements {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.analysis-requirements th,
+.analysis-requirements td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: top;
+}
+
+.analysis-requirements td:first-child {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.coverage-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.coverage-chip {
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.coverage-chip strong {
+    color: var(--primary-color);
+}
+
+.analysis-empty,
+.analysis-time {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.analysis-time {
+    margin-top: 1rem;
+}
+
+/* Test cases: Part 2 */
+.suite-heading {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.table-meta,
+.table-tags {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.table-tags {
+    color: var(--text-muted);
+}
+
+.step-result {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+/* Table view: a thicker line where each test case's block of step rows starts */
+.sheet tbody tr.sheet-block-start td,
+.sheet tbody tr.sheet-block-start th {
+    border-top: 2px solid #b7d7c2;
+}
+
+.sheet-test-cases td {
+    min-width: 120px;
+}
+
+/* Fixed format cards (Step 2) */
+.format-intro {
     margin-bottom: 0.75rem;
     font-size: 0.9rem;
     color: var(--text-secondary);
 }
 
-.bug-format-list {
+.format-list {
     padding-left: 1.25rem;
     columns: 2;
     font-size: 0.9rem;
@@ -1310,7 +1435,7 @@ input::placeholder {
     color: var(--text-primary);
 }
 
-.bug-format-list small {
+.format-list small {
     color: var(--text-muted);
 }
 

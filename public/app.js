@@ -4,7 +4,6 @@
 
 // DOM Elements
 const userStoryInput = document.getElementById('userStory');
-const schemaInput = document.getElementById('schema');
 const preferencesInput = document.getElementById('preferences');
 const generateBtn = document.getElementById('generateBtn');
 const outputSection = document.getElementById('outputSection');
@@ -77,6 +76,7 @@ let openRouterModels = null;
 let currentMode = 'testCases';
 let lastMode = 'testCases';
 let lastBugReport = null;
+let lastTestSuite = null;
 
 // Example user story
 const exampleUserStory = `As a registered user,
@@ -589,7 +589,7 @@ async function generateOutput() {
             },
             body: JSON.stringify(bugMode
                 ? { issue: userStory, preferences, provider, model }
-                : { userStory, schema: schemaInput.value.trim() || null, preferences, provider, model })
+                : { userStory, preferences, provider, model })
         });
 
         const data = await response.json();
@@ -602,10 +602,10 @@ async function generateOutput() {
         lastMode = mode;
         if (bugMode) {
             lastGeneratedText = data.report;
-            displayBugReport(data.report);
+            displayBugReport(data.report, data.truncated);
         } else {
             lastGeneratedText = data.testCases;
-            displayTestCases(data.testCases);
+            displayTestCases(data.testCases, data.truncated);
         }
         displayUsageInfo(data.usage, data.modelName, data.provider);
         outputSection.style.display = 'block';
@@ -654,17 +654,6 @@ function parseModelJson(text) {
     return null;
 }
 
-// Returns an array of test cases, or null when the reply has no JSON
-function parseTestCases(text) {
-    const parsed = parseModelJson(text);
-    if (parsed === null || typeof parsed !== 'object') return null;
-    if (Array.isArray(parsed)) return parsed;
-    // Unwrap {"testCases": [...]} style wrappers
-    const values = Object.values(parsed);
-    if (values.length === 1 && Array.isArray(values[0])) return values[0];
-    return [parsed];
-}
-
 // Models name the same field differently (testCaseId, test_case_id, "Test Case ID"),
 // so match keys ignoring case, spaces and punctuation.
 const normalizeKey = key => key.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -675,108 +664,305 @@ function field(testCase, ...names) {
     return key === undefined ? undefined : testCase[key];
 }
 
-// Shown when a reply has no valid JSON: the text as-is, plus a notice
-function displayUnparsedReply(text) {
-    const notice = '<p class="output-notice"><i class="fas fa-exclamation-triangle"></i> The model\'s reply isn\'t valid JSON, so it can\'t be shown as a table. Models occasionally write invalid JSON; generating again usually fixes it.</p>';
+// Shown when a reply has no valid JSON: the text as-is, plus a notice saying why
+function displayUnparsedReply(text, truncated) {
+    const reason = truncated
+        ? 'The reply hit the model\'s output limit and was cut off, so it isn\'t complete JSON. Try a model with a larger output limit, such as Claude, or split the story into smaller parts.'
+        : 'The model\'s reply isn\'t valid JSON, so it can\'t be shown as a table. Models occasionally write invalid JSON; generating again usually fixes it.';
+    const notice = `<p class="output-notice"><i class="fas fa-exclamation-triangle"></i> ${reason}</p>`;
     outputRaw.textContent = text;
     outputFormatted.innerHTML = `${notice}<div class="story-preview">${escapeHtml(text)}</div>`;
     outputTable.innerHTML = notice;
 }
 
-function displayTestCases(testCases) {
-    const cases = parseTestCases(testCases);
+// ===================================
+// Test Cases (user-story-test-case-generator skill format)
+// ===================================
 
-    if (!cases) {
-        displayUnparsedReply(testCases);
-        return;
-    }
+// The skill's 12 template columns in order, plus the kept Priority column after Type of Test Case
+const TEST_CASE_COLUMNS = [
+    ['testCaseId', 'Test Case ID'],
+    ['title', 'Title'],
+    ['moduleFeature', 'Module / Feature'],
+    ['preconditions', 'Preconditions'],
+    ['tags', 'Tags'],
+    ['steps', 'Steps'],
+    ['results', 'Results'],
+    ['typeOfTestCase', 'Type of Test Case'],
+    ['priority', 'Priority'],
+    ['estimate', 'Estimate'],
+    ['owner', 'Owner'],
+    ['automationStatus', 'Automation Status'],
+    ['state', 'State']
+];
 
-    outputRaw.textContent = JSON.stringify(cases, null, 2);
-    displayFormattedTestCases(cases);
-    displaySheet(cases);
+const toText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
+const toList = value => Array.isArray(value) ? value : value ? [value] : [];
+const joinText = (value, separator) => Array.isArray(value) ? value.map(toText).join(separator) : toText(value);
+// The layout numbers the steps itself, so drop any numbering the model added
+const stripNumbering = text => text.replace(/^\s*\d+[.)]\s*/, '');
+
+// Steps arrive as [{step, result}] pairs, or as plain strings with a separate results list
+function normalizeSteps(steps, results) {
+    const resultList = toList(results);
+    return toList(steps).map((item, i) => {
+        if (item && typeof item === 'object') {
+            return {
+                step: stripNumbering(toText(field(item, 'step', 'action', 'description'))),
+                result: toText(field(item, 'result', 'expectedResult', 'expected'))
+            };
+        }
+        return { step: stripNumbering(toText(item)), result: toText(resultList[i]) };
+    });
 }
 
-function displayFormattedTestCases(testCases) {
-    const cases = Array.isArray(testCases) ? testCases : [testCases];
+// Maps one test case from the model onto the template's fields, tolerating renamed keys
+function normalizeTestCase(raw, index) {
+    return {
+        testCaseId: toText(field(raw, 'testCaseId', 'id')) || `TC-${String(index + 1).padStart(3, '0')}`,
+        title: toText(field(raw, 'title', 'testCaseTitle', 'name')),
+        moduleFeature: toText(field(raw, 'moduleFeature', 'module', 'feature')),
+        preconditions: joinText(field(raw, 'preconditions'), '; '),
+        tags: joinText(field(raw, 'tags'), ', '),
+        steps: normalizeSteps(field(raw, 'steps', 'testSteps'), field(raw, 'results', 'expectedResults', 'expectedResult')),
+        typeOfTestCase: toText(field(raw, 'typeOfTestCase', 'testType', 'type')),
+        priority: toText(field(raw, 'priority')),
+        estimate: toText(field(raw, 'estimate')),
+        owner: toText(field(raw, 'owner')),
+        automationStatus: toText(field(raw, 'automationStatus')),
+        state: toText(field(raw, 'state'))
+    };
+}
 
-    if (cases.length === 0) {
-        outputFormatted.innerHTML = '<p>No test cases to display</p>';
-        return;
+function normalizeAnalysis(raw) {
+    const analysis = raw && typeof raw === 'object' ? raw : {};
+    return {
+        storyTitle: toText(field(analysis, 'storyTitle', 'title')),
+        requirements: toList(field(analysis, 'requirementInventory', 'requirements')).map((item, i) =>
+            item && typeof item === 'object'
+                ? {
+                    id: toText(field(item, 'id')) || `R${i + 1}`,
+                    requirement: toText(field(item, 'requirement', 'description', 'text')),
+                    source: toText(field(item, 'source'))
+                }
+                : { id: `R${i + 1}`, requirement: toText(item), source: '' }),
+        assumptions: toList(field(analysis, 'assumptions')).map(toText),
+        openQuestions: toList(field(analysis, 'openQuestions', 'ambiguities')).map(toText),
+        risks: toList(field(analysis, 'risks', 'missingRequirements')).map(toText)
+    };
+}
+
+// Returns {analysis, testCases}, or null when the reply has no usable JSON
+function parseTestSuite(text) {
+    const parsed = parseModelJson(text);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const rawCases = Array.isArray(parsed) ? parsed : field(parsed, 'testCases');
+    if (!Array.isArray(rawCases)) return null;
+    return {
+        analysis: normalizeAnalysis(Array.isArray(parsed) ? null : field(parsed, 'analysis')),
+        testCases: rawCases.filter(tc => tc && typeof tc === 'object').map(normalizeTestCase)
+    };
+}
+
+// "3m", "1h 30m", "5 min" -> minutes
+function estimateMinutes(estimate) {
+    const hours = estimate.match(/(\d+(?:\.\d+)?)\s*h/i);
+    const minutes = estimate.match(/(\d+(?:\.\d+)?)\s*m/i);
+    if (hours || minutes) {
+        return (hours ? parseFloat(hours[1]) * 60 : 0) + (minutes ? parseFloat(minutes[1]) : 0);
     }
+    return parseFloat(estimate) || 0;
+}
 
-    // Build table HTML
-    let html = `
+// Case count, coverage by type, and the skill's time estimate:
+// the summed estimates × a 1.5 junior buffer, rounded up to 5 minutes
+function suiteSummary(suite) {
+    const coverage = {};
+    suite.testCases.forEach(tc => {
+        const type = tc.typeOfTestCase || 'Unspecified';
+        coverage[type] = (coverage[type] || 0) + 1;
+    });
+    const rawMinutes = Math.round(suite.testCases.reduce((sum, tc) => sum + estimateMinutes(tc.estimate), 0));
+    return {
+        cases: suite.testCases.length,
+        coverage,
+        rawMinutes,
+        timeEstimate: Math.ceil(rawMinutes * 1.5 / 5) * 5
+    };
+}
+
+function renderAnalysisHtml(suite) {
+    const { analysis } = suite;
+    const summary = suiteSummary(suite);
+    const list = (items, tag = 'ul') => items.length
+        ? `<${tag}>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</${tag}>`
+        : '<p class="analysis-empty">None noted.</p>';
+    const requirements = analysis.requirements.length
+        ? `<table class="analysis-requirements">
+                <thead><tr><th>ID</th><th>Requirement</th><th>Source</th></tr></thead>
+                <tbody>${analysis.requirements.map(r => `
+                    <tr><td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.requirement)}</td><td>${escapeHtml(r.source)}</td></tr>
+                `).join('')}</tbody>
+            </table>`
+        : '<p class="analysis-empty">None listed.</p>';
+    const coverage = Object.entries(summary.coverage)
+        .map(([type, count]) => `<span class="coverage-chip">${escapeHtml(type)} <strong>${count}</strong></span>`)
+        .join('');
+
+    // Collapsed by default so the test cases are visible first
+    return `
+        <details class="analysis">
+            <summary>
+                <span class="analysis-heading">Part 1: Analysis${analysis.storyTitle ? ` · ${escapeHtml(analysis.storyTitle)}` : ''}</span>
+                <span class="analysis-stats">${analysis.requirements.length} requirements · ${analysis.openQuestions.length} open questions · ${summary.cases} cases · estimate ${summary.timeEstimate}m</span>
+            </summary>
+            <h4>Requirement inventory</h4>${requirements}
+            <h4>Assumptions made</h4>${list(analysis.assumptions)}
+            <h4>Ambiguities &amp; open questions</h4>${list(analysis.openQuestions, 'ol')}
+            <h4>Missing requirements &amp; risks</h4>${list(analysis.risks)}
+            <h4>Coverage summary</h4><div class="coverage-chips">${coverage}</div>
+            <p class="analysis-time">Raw estimate ${summary.rawMinutes}m · time estimate ${summary.timeEstimate}m (×1.5 junior buffer, rounded up to 5m)</p>
+        </details>
+    `;
+}
+
+function renderTestCasesHtml(suite) {
+    const rows = suite.testCases.map(tc => {
+        const steps = tc.steps.length
+            ? `<ol class="table-steps">${tc.steps.map(s => `
+                <li>${escapeHtml(s.step)}${s.result ? `<span class="step-result">→ ${escapeHtml(s.result)}</span>` : ''}</li>
+            `).join('')}</ol>`
+            : '-';
+        return `
+            <tr>
+                <td><span class="table-id">${escapeHtml(tc.testCaseId)}</span></td>
+                <td>
+                    <div class="table-title">${escapeHtml(tc.title)}</div>
+                    ${tc.moduleFeature ? `<div class="table-meta">${escapeHtml(tc.moduleFeature)}</div>` : ''}
+                    ${tc.tags ? `<div class="table-tags">${escapeHtml(tc.tags)}</div>` : ''}
+                </td>
+                <td>${tc.priority ? `<span class="table-priority ${escapeHtml(tc.priority.toLowerCase())}">${escapeHtml(tc.priority)}</span>` : '-'}</td>
+                <td><span class="table-type">${escapeHtml(tc.typeOfTestCase || '-')}</span></td>
+                <td><span class="table-cell-content">${escapeHtml(tc.preconditions || '-')}</span></td>
+                <td>${steps}</td>
+                <td>${escapeHtml(tc.estimate || '-')}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <h3 class="suite-heading">Part 2: Test cases</h3>
         <div class="table-container">
             <table class="test-cases-table">
                 <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Title</th>
-                        <th>Priority</th>
-                        <th>Type</th>
-                        <th>Preconditions</th>
-                        <th>Test Steps</th>
-                        <th>Expected Results</th>
-                    </tr>
+                    <tr><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Preconditions</th><th>Steps → Results</th><th>Estimate</th></tr>
                 </thead>
-                <tbody>
-    `;
-
-    cases.forEach((tc, index) => {
-        const id = field(tc, 'testCaseId', 'id') || `TC-${String(index + 1).padStart(3, '0')}`;
-        const title = field(tc, 'title', 'testCaseTitle', 'name') || 'Test Case';
-        const priority = String(field(tc, 'priority') || 'Medium').toLowerCase();
-        const description = field(tc, 'description') || '';
-        const preconditions = field(tc, 'preconditions') || [];
-        const steps = field(tc, 'steps', 'testSteps') || [];
-        const expectedResults = field(tc, 'expectedResults', 'expectedResult') || '';
-        const testType = field(tc, 'testType', 'type') || 'Functional';
-
-        // Format preconditions
-        let preconditionsHtml = '-';
-        if (Array.isArray(preconditions) && preconditions.length > 0) {
-            preconditionsHtml = `<ul class="table-cell-list">${preconditions.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`;
-        } else if (typeof preconditions === 'string' && preconditions) {
-            preconditionsHtml = escapeHtml(preconditions);
-        }
-
-        // Format steps
-        let stepsHtml = '-';
-        if (Array.isArray(steps) && steps.length > 0) {
-            stepsHtml = `<ol class="table-steps">${steps.map(s => `<li>${escapeHtml(typeof s === 'object' ? s.action || s.step || JSON.stringify(s) : s)}</li>`).join('')}</ol>`;
-        }
-
-        // Format expected results
-        let expectedHtml = '-';
-        if (Array.isArray(expectedResults) && expectedResults.length > 0) {
-            expectedHtml = `<ul class="table-cell-list">${expectedResults.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
-        } else if (expectedResults) {
-            expectedHtml = `<span class="table-cell-content">${escapeHtml(expectedResults)}</span>`;
-        }
-
-        html += `
-            <tr>
-                <td><span class="table-id">${escapeHtml(id)}</span></td>
-                <td>
-                    <div class="table-title">${escapeHtml(title)}</div>
-                    ${description ? `<div class="table-cell-content" style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.8rem;">${escapeHtml(description)}</div>` : ''}
-                </td>
-                <td><span class="table-priority ${priority}">${escapeHtml(priority.charAt(0).toUpperCase() + priority.slice(1))}</span></td>
-                <td><span class="table-type">${escapeHtml(testType)}</span></td>
-                <td>${preconditionsHtml}</td>
-                <td>${stepsHtml}</td>
-                <td>${expectedHtml}</td>
-            </tr>
-        `;
-    });
-
-    html += `
-                </tbody>
+                <tbody>${rows}</tbody>
             </table>
         </div>
     `;
+}
 
-    outputFormatted.innerHTML = html;
+// The template's multi-row layout: a case's first row holds its metadata, step 1 and
+// result 1; each later row holds only the next step and its result
+function testCaseRows(tc) {
+    const steps = tc.steps.length ? tc.steps : [{ step: '', result: '' }];
+    return steps.map((s, i) => TEST_CASE_COLUMNS.map(([key]) => {
+        if (key === 'steps') return s.step ? `${i + 1}. ${s.step}` : '';
+        if (key === 'results') return s.result;
+        return i === 0 ? tc[key] : '';
+    }));
+}
+
+function displayTestCaseSheet(suite) {
+    const blocks = suite.testCases.map(testCaseRows);
+    const blockStarts = new Set();
+    let row = 0;
+    blocks.forEach(block => {
+        blockStarts.add(row);
+        row += block.length;
+    });
+    renderSheet(
+        TEST_CASE_COLUMNS.map(([, label]) => label),
+        blocks.flat(),
+        'sheet-test-cases',
+        index => blockStarts.has(index) ? 'sheet-block-start' : ''
+    );
+}
+
+function displayTestCases(text, truncated) {
+    lastTestSuite = parseTestSuite(text);
+
+    if (!lastTestSuite) {
+        displayUnparsedReply(text, truncated);
+        return;
+    }
+
+    outputRaw.textContent = JSON.stringify(lastTestSuite, null, 2);
+    outputFormatted.innerHTML = renderAnalysisHtml(lastTestSuite) + renderTestCasesHtml(lastTestSuite);
+    displayTestCaseSheet(lastTestSuite);
+}
+
+// The skill's two-part .md layout: a header, Part 1 (analysis), Part 2 (the template table)
+function testSuiteMarkdown(suite) {
+    const { analysis } = suite;
+    const summary = suiteSummary(suite);
+    const cell = value => String(value).replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
+    const tableRow = cells => `| ${cells.map(cell).join(' | ')} |`;
+    const bullets = (items, numbered = false) => items.length
+        ? items.map((item, i) => `${numbered ? `${i + 1}.` : '-'} ${item}`).join('\n')
+        : '- None noted.';
+
+    // The most common module names the whole suite
+    const moduleCounts = {};
+    suite.testCases.forEach(tc => {
+        if (tc.moduleFeature) moduleCounts[tc.moduleFeature] = (moduleCounts[tc.moduleFeature] || 0) + 1;
+    });
+    const moduleFeature = Object.entries(moduleCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    const owner = suite.testCases.find(tc => tc.owner)?.owner || '';
+    const headers = TEST_CASE_COLUMNS.map(([, label]) => label);
+
+    return [
+        `# Test Cases${analysis.storyTitle ? ` — ${analysis.storyTitle}` : ''}`,
+        '',
+        moduleFeature ? `**Module / Feature:** ${moduleFeature}` : '',
+        `${owner ? `**Owner:** ${owner} · ` : ''}**Cases:** ${summary.cases} · **Raw estimate sum:** ${summary.rawMinutes}m · **Time Estimate:** ${summary.timeEstimate}m (${summary.rawMinutes} × 1.5 junior buffer, rounded up to 5m)`,
+        '',
+        '---',
+        '',
+        '## Part 1 — Analysis',
+        '',
+        '### Requirement inventory',
+        '',
+        tableRow(['ID', 'Requirement', 'Source']),
+        '|----|-------------|--------|',
+        ...analysis.requirements.map(r => tableRow([r.id, r.requirement, r.source])),
+        '',
+        '### Assumptions made',
+        '',
+        bullets(analysis.assumptions),
+        '',
+        '### Ambiguities & open questions',
+        '',
+        bullets(analysis.openQuestions, true),
+        '',
+        '### Missing requirements & risks',
+        '',
+        bullets(analysis.risks),
+        '',
+        '### Coverage summary',
+        '',
+        Object.entries(summary.coverage).map(([type, count]) => `${type} ${count}`).join(', '),
+        '',
+        '---',
+        '',
+        '## Part 2 — Test cases',
+        '',
+        tableRow(headers),
+        `|${headers.map(header => '-'.repeat(header.length + 2)).join('|')}|`,
+        ...suite.testCases.flatMap(testCaseRows).map(tableRow),
+        ''
+    ].filter((line, i, lines) => line !== '' || lines[i - 1] !== '').join('\n');
 }
 
 function escapeHtml(text) {
@@ -790,25 +976,12 @@ function escapeHtml(text) {
 // Table View (spreadsheet style)
 // ===================================
 
-function displaySheet(cases) {
-    // One column per field any test case has, in first-seen order
-    const columns = [];
-    cases.forEach(tc => Object.keys(tc).forEach(key => {
-        if (!columns.includes(key)) columns.push(key);
-    }));
-
-    renderSheet(
-        columns.map(humanizeKey),
-        cases.map(tc => columns.map(key => formatCell(tc[key])))
-    );
-}
-
 // Spreadsheet-style grid: column letters, a header row, then numbered rows of text cells
-function renderSheet(headers, rows, className = '') {
+function renderSheet(headers, rows, className = '', rowClass = () => '') {
     const letters = headers.map((_, i) => `<th>${columnLetter(i)}</th>`).join('');
     const headerCells = headers.map(header => `<th>${escapeHtml(header)}</th>`).join('');
     const bodyRows = rows.map((row, index) => `
-        <tr>
+        <tr class="${rowClass(index)}">
             <th class="sheet-row-number">${index + 1}</th>
             ${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}
         </tr>
@@ -832,31 +1005,6 @@ function columnLetter(index) {
         letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
     }
     return letters;
-}
-
-// testCaseId / test_case_id -> "Test Case ID"
-function humanizeKey(key) {
-    return key
-        .replace(/[_-]+/g, ' ')
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/\b\w/g, c => c.toUpperCase())
-        .replace(/\bId\b/g, 'ID');
-}
-
-// Lists become numbered lines; objects become "Key: value" pairs
-function formatCell(value, nested = false) {
-    if (value === null || value === undefined) return '';
-    if (Array.isArray(value)) {
-        return value.map((item, i) => `${i + 1}. ${formatCell(item, true)}`).join('\n');
-    }
-    if (typeof value === 'object') {
-        return Object.entries(value)
-            .map(([key, item]) => `${humanizeKey(key)}: ${formatCell(item, true)}`)
-            .join(nested ? '; ' : '\n');
-    }
-    return String(value);
 }
 
 // ===================================
@@ -967,14 +1115,14 @@ function renderBugReportHtml(report) {
     `;
 }
 
-function displayBugReport(text) {
+function displayBugReport(text, truncated) {
     const parsed = parseModelJson(text);
     lastBugReport = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
         ? normalizeBugReport(parsed)
         : null;
 
     if (!lastBugReport) {
-        displayUnparsedReply(text);
+        displayUnparsedReply(text, truncated);
         return;
     }
 
@@ -1001,125 +1149,58 @@ function displayUsageInfo(usage, modelName, provider) {
 // Export Functions
 // ===================================
 
+// Markdown in the skill's layout for the current result, or null when the reply wasn't valid JSON
+function exportMarkdown() {
+    if (lastMode === 'bugReport') return lastBugReport ? bugReportMarkdown(lastBugReport) : null;
+    return lastTestSuite ? testSuiteMarkdown(lastTestSuite) : null;
+}
+
+const exportName = () => lastMode === 'bugReport' ? 'bug-report' : 'test-cases';
+
+function showUnparsedExportError() {
+    showNotification('This reply isn\'t valid JSON; copy it from the Raw JSON tab instead', 'error');
+}
+
 async function copyToClipboard() {
     try {
-        const bugReport = lastMode === 'bugReport' && lastBugReport;
-        await navigator.clipboard.writeText(bugReport ? bugReportMarkdown(lastBugReport) : lastGeneratedText);
-        showNotification(bugReport ? 'Copied the report as Markdown!' : 'Copied to clipboard!', 'success');
+        const markdown = exportMarkdown();
+        await navigator.clipboard.writeText(markdown ?? lastGeneratedText);
+        showNotification(markdown ? 'Copied as Markdown!' : 'Copied to clipboard!', 'success');
     } catch (error) {
         showNotification('Failed to copy to clipboard', 'error');
     }
 }
 
 function downloadJSON() {
-    if (lastMode === 'bugReport') return downloadBugReport('json');
-    try {
-        let content = lastGeneratedText;
-        const cases = parseTestCases(lastGeneratedText);
-        content = cases
-            ? JSON.stringify(cases, null, 2)
-            : JSON.stringify({ testCases: lastGeneratedText }, null, 2);
-
-        downloadFile(content, 'test-cases.json', 'application/json');
-        showNotification('Downloaded as JSON!', 'success');
-    } catch (error) {
-        showNotification('Failed to download JSON', 'error');
-    }
+    const data = lastMode === 'bugReport' ? lastBugReport : lastTestSuite;
+    if (!data) return showUnparsedExportError();
+    downloadFile(JSON.stringify(data, null, 2), `${exportName()}.json`, 'application/json');
+    showNotification('Downloaded as JSON!', 'success');
 }
 
 function downloadMarkdown() {
-    if (lastMode === 'bugReport') return downloadBugReport('md');
-    try {
-        let markdown = '# Generated Test Cases\n\n';
-        markdown += `**Generated on:** ${new Date().toLocaleString()}\n\n`;
-        markdown += `**User Story:**\n\`\`\`\n${userStoryInput.value}\n\`\`\`\n\n`;
-        markdown += '---\n\n';
-
-        try {
-            const cases = parseTestCases(lastGeneratedText);
-            if (!cases) throw new Error('Response is not JSON');
-
-            cases.forEach((testCase, index) => {
-                markdown += `## Test Case ${index + 1}\n\n`;
-                Object.entries(testCase).forEach(([key, value]) => {
-                    const formattedKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                    markdown += `### ${formattedKey}\n`;
-                    if (Array.isArray(value)) {
-                        markdown += value.map(item => `- ${typeof item === 'object' ? JSON.stringify(item) : item}`).join('\n') + '\n';
-                    } else if (typeof value === 'object') {
-                        markdown += '```json\n' + JSON.stringify(value, null, 2) + '\n```\n';
-                    } else {
-                        markdown += `${value}\n`;
-                    }
-                    markdown += '\n';
-                });
-                markdown += '---\n\n';
-            });
-        } catch (e) {
-            markdown += '```\n' + lastGeneratedText + '\n```\n';
-        }
-
-        downloadFile(markdown, 'test-cases.md', 'text/markdown');
-        showNotification('Downloaded as Markdown!', 'success');
-    } catch (error) {
-        showNotification('Failed to download Markdown', 'error');
-    }
+    const markdown = exportMarkdown();
+    if (!markdown) return showUnparsedExportError();
+    downloadFile(markdown, `${exportName()}.md`, 'text/markdown');
+    showNotification('Downloaded as Markdown!', 'success');
 }
 
 function downloadCSV() {
-    if (lastMode === 'bugReport') return downloadBugReport('csv');
-    try {
-        const cases = parseTestCases(lastGeneratedText);
-        if (!cases) throw new Error('Response is not JSON');
-
-        // CSV headers
-        const headers = ['ID', 'Title', 'Description', 'Priority', 'Type', 'Preconditions', 'Test Steps', 'Expected Results', 'Test Data'];
-
-        // Build CSV rows
-        const rows = cases.map((tc, index) => {
-            const id = field(tc, 'testCaseId', 'id') || `TC-${String(index + 1).padStart(3, '0')}`;
-            const title = field(tc, 'title', 'testCaseTitle', 'name') || '';
-            const description = field(tc, 'description') || '';
-            const priority = field(tc, 'priority') || 'Medium';
-            const testType = field(tc, 'testType', 'type') || 'Functional';
-            const preconditions = field(tc, 'preconditions') || [];
-            const steps = field(tc, 'steps', 'testSteps') || [];
-            const expectedResults = field(tc, 'expectedResults', 'expectedResult') || '';
-            const testData = field(tc, 'testData') || '';
-
-            // Format arrays for CSV
-            const formatArray = (arr) => {
-                if (Array.isArray(arr)) {
-                    return arr.map((item, i) => `${i + 1}. ${typeof item === 'object' ? item.action || item.step || JSON.stringify(item) : item}`).join('\n');
-                }
-                return arr || '';
-            };
-
-            return [
-                id,
-                title,
-                description,
-                priority,
-                testType,
-                formatArray(preconditions),
-                formatArray(steps),
-                Array.isArray(expectedResults) ? formatArray(expectedResults) : expectedResults,
-                typeof testData === 'object' ? JSON.stringify(testData) : testData
-            ];
-        });
-
-        // Build CSV content
-        let csv = headers.map(escapeCSV).join(',') + '\n';
-        rows.forEach(row => {
-            csv += row.map(escapeCSV).join(',') + '\n';
-        });
-
-        downloadFile(csv, 'test-cases.csv', 'text/csv;charset=utf-8;');
-        showNotification('Downloaded as CSV!', 'success');
-    } catch (error) {
-        console.error('CSV export error:', error);
-        showNotification('Failed to download CSV', 'error');
+    let rows;
+    if (lastMode === 'bugReport') {
+        if (!lastBugReport) return showUnparsedExportError();
+        // One header row and one report row, ready for a spreadsheet or bug tracker import
+        const fields = bugReportFields(lastBugReport);
+        rows = [fields.map(([label]) => label), fields.map(([, value]) => value)];
+    } else {
+        if (!lastTestSuite) return showUnparsedExportError();
+        // The template's multi-row layout, ready for test management import
+        rows = [TEST_CASE_COLUMNS.map(([, label]) => label), ...lastTestSuite.testCases.flatMap(testCaseRows)];
     }
+    // The BOM makes Excel read the file as UTF-8, so Arabic text survives
+    const csv = '﻿' + rows.map(row => row.map(escapeCSV).join(',')).join('\n') + '\n';
+    downloadFile(csv, `${exportName()}.csv`, 'text/csv;charset=utf-8;');
+    showNotification('Downloaded as CSV!', 'success');
 }
 
 function escapeCSV(value) {
@@ -1129,27 +1210,6 @@ function escapeCSV(value) {
         return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
-}
-
-function downloadBugReport(format) {
-    if (!lastBugReport) {
-        showNotification('This reply isn\'t valid JSON; copy it from the Raw JSON tab instead', 'error');
-        return;
-    }
-
-    if (format === 'json') {
-        downloadFile(JSON.stringify(lastBugReport, null, 2), 'bug-report.json', 'application/json');
-    } else if (format === 'md') {
-        downloadFile(bugReportMarkdown(lastBugReport), 'bug-report.md', 'text/markdown');
-    } else {
-        // One header row and one report row, ready for a spreadsheet or bug tracker import
-        const fields = bugReportFields(lastBugReport);
-        const csv = [fields.map(([label]) => label), fields.map(([, value]) => value)]
-            .map(row => row.map(escapeCSV).join(','))
-            .join('\n') + '\n';
-        downloadFile(csv, 'bug-report.csv', 'text/csv;charset=utf-8;');
-    }
-    showNotification(`Downloaded as ${format === 'md' ? 'Markdown' : format.toUpperCase()}!`, 'success');
 }
 
 function downloadFile(content, filename, mimeType) {
@@ -1207,6 +1267,7 @@ async function loadProviders() {
         const response = await fetch('/api/providers');
         const data = await response.json();
         availableProviders = data.providers;
+        document.getElementById('modelCountBadge').textContent = `${availableProviders.length} AI Models`;
 
         // Update individual provider tiles with real names/descriptions
         availableProviders.forEach(provider => {
