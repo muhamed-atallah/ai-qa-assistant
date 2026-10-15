@@ -1,4 +1,4 @@
-# AI Test Case & Bug Report Generator
+# AI QA Assistant
 
 A web application that uses the latest AI models (**Claude Haiku 5.5**, **Gemini 3.8 Flash**, **GPT-OSS 120B**, and 460+ models via **OpenRouter**) to generate comprehensive test cases from user stories, and professional bug reports from issue descriptions.
 
@@ -18,7 +18,7 @@ A web application that uses the latest AI models (**Claude Haiku 5.5**, **Gemini
 
 ## How It Works
 
-![How the AI Test Case Generator works: the browser sends your story to the local Express server, which adds expert QA instructions and calls the AI provider you picked](docs/architecture.png)
+![How AI QA Assistant works: the browser sends your story to the local Express server, which adds expert QA instructions and calls the AI provider you picked](docs/architecture.png)
 
 1. You pick a mode, give a story (typed, from ClickUp, or a `.md` file), choose a model and click **Generate**
 2. The local server wraps the story in expert QA instructions and asks the AI for structured JSON
@@ -44,8 +44,8 @@ The editable source of the diagram is [`docs/architecture.excalidraw`](docs/arch
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/muhamed-atallah/ai-test-case-generator.git
-cd ai-test-case-generator
+git clone https://github.com/muhamed-atallah/ai-qa-assistant.git
+cd ai-qa-assistant
 ```
 
 2. Install dependencies:
@@ -131,7 +131,7 @@ Click **Generate**, review the result in the Formatted, Table or Raw JSON view, 
 ## Project Structure
 
 ```
-ai-test-case-generator/
+ai-qa-assistant/
 ├── server.js              # Express backend: AI providers, ClickUp and upload endpoints
 ├── package.json           # Dependencies and scripts
 ├── .env.example           # Example environment variables (copy to .env)

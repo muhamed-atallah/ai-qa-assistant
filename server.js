@@ -603,7 +603,7 @@ app.get('/api/health', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 AI Test Case Generator running on http://localhost:${PORT}`);
+  console.log(`🚀 AI QA Assistant running on http://localhost:${PORT}`);
   console.log(`📝 Available models:`);
   Object.keys(AI_MODELS).forEach(key => {
     const isFree = AI_MODELS[key].provider === 'Groq' ? ' [FREE]' : '';

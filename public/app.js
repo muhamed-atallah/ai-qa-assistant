@@ -1,5 +1,5 @@
 // ===================================
-// AI Test Case Generator - App Logic
+// AI QA Assistant - App Logic
 // ===================================
 
 // DOM Elements
@@ -501,7 +501,7 @@ function updateSubtitle() {
     if (provider) {
         subtitle.textContent = `Powered by ${provider.name} (${provider.provider})`;
     } else {
-        subtitle.textContent = 'Transform user stories into comprehensive test cases';
+        subtitle.textContent = 'Test cases from user stories, bug reports from issue descriptions';
     }
 }
 

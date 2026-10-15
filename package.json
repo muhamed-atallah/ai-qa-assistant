@@ -1,5 +1,5 @@
 {
-  "name": "ai-test-case-generator",
+  "name": "ai-qa-assistant",
   "version": "1.0.0",
   "description": "Web app that generates test cases from user stories and bug reports from issue descriptions using Claude, Gemini, Groq, xAI and OpenRouter models",
   "main": "server.js",
