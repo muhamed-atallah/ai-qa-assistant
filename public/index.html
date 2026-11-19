@@ -18,7 +18,7 @@
                     </div>
                     <div class="logo-text">
                         <h1>AI QA Assistant</h1>
-                        <p class="tagline" id="subtitle">Test cases from user stories, bug reports from issue descriptions</p>
+                        <p class="tagline" id="subtitle">Test cases and checklists from user stories, bug reports from issue descriptions</p>
                     </div>
                 </div>
                 <div class="header-badges">
@@ -28,7 +28,7 @@
                     </span>
                     <span class="badge badge-feature">
                         <i class="fas fa-list-check"></i>
-                        Test Cases &amp; Bug Reports
+                        Test Cases, Checklists &amp; Bug Reports
                     </span>
                     <span class="badge badge-feature">
                         <i class="fas fa-table"></i>
@@ -43,26 +43,33 @@
             <div class="workflow-steps">
                 <div class="step active" data-step="1">
                     <div class="step-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <span class="step-label">AI Model</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" data-step="2">
+                    <div class="step-icon">
                         <i class="fas fa-file-alt"></i>
                     </div>
                     <span class="step-label" data-bug-report="Describe Bug">Input Story</span>
                 </div>
                 <div class="step-connector"></div>
-                <div class="step" data-step="2">
+                <div class="step" data-step="3">
                     <div class="step-icon">
                         <i class="fas fa-cog"></i>
                     </div>
                     <span class="step-label">Configure</span>
                 </div>
                 <div class="step-connector"></div>
-                <div class="step" data-step="3">
+                <div class="step" data-step="4">
                     <div class="step-icon">
                         <i class="fas fa-magic"></i>
                     </div>
                     <span class="step-label">Generate</span>
                 </div>
                 <div class="step-connector"></div>
-                <div class="step" data-step="4">
+                <div class="step" data-step="5">
                     <div class="step-icon">
                         <i class="fas fa-download"></i>
                     </div>
@@ -76,313 +83,25 @@
             <button class="mode-option active" data-mode="testCases" role="tab" aria-selected="true">
                 <i class="fas fa-list-check"></i> Test Cases
             </button>
+            <button class="mode-option" data-mode="checklist" role="tab" aria-selected="false">
+                <i class="fas fa-clipboard-check"></i> Checklist
+            </button>
             <button class="mode-option" data-mode="bugReport" role="tab" aria-selected="false">
                 <i class="fas fa-bug"></i> Bug Report
             </button>
         </div>
 
         <main class="main-content">
-            <!-- Step 1: Input Section -->
-            <section class="input-section" data-section="1">
+            <!-- Step 1: AI Model Section -->
+            <section class="model-section" data-section="1">
                 <div class="section-header">
-                    <h2><i class="fas fa-file-alt"></i> <span data-bug-report="Step 1: Describe the Bug">Step 1: Provide Your User Story</span></h2>
-                    <p class="section-desc" data-bug-report="Choose how you'd like to provide the issue description">Choose how you'd like to input your user story</p>
+                    <h2><i class="fas fa-robot"></i> Step 1: Choose Your AI Model</h2>
+                    <p class="section-desc" data-bug-report="Pick the AI that will write your bug report" data-checklist="Pick the AI that will write your checklist">Pick the AI that will write your test cases</p>
                 </div>
 
-                <!-- Input Method Cards -->
-                <div class="input-methods">
-                    <button class="method-card active" data-tab="manual">
-                        <div class="method-icon">
-                            <i class="fas fa-keyboard"></i>
-                        </div>
-                        <div class="method-info">
-                            <h3>Manual Input</h3>
-                            <p data-bug-report="Type or paste the issue description">Type or paste your user story directly</p>
-                        </div>
-                    </button>
-                    <button class="method-card" data-tab="clickup">
-                        <div class="method-icon">
-                            <i class="fas fa-link"></i>
-                        </div>
-                        <div class="method-info">
-                            <h3>ClickUp Import</h3>
-                            <p>Fetch from ClickUp task</p>
-                        </div>
-                    </button>
-                    <button class="method-card" data-tab="upload">
-                        <div class="method-icon">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                        </div>
-                        <div class="method-info">
-                            <h3>File Upload</h3>
-                            <p>Upload a markdown file</p>
-                        </div>
-                    </button>
-                </div>
-
-                <!-- Manual Input Tab -->
-                <div class="tab-content active" id="manual-tab">
-                    <div class="card glass-card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-edit"></i> <span data-bug-report="Issue Description">User Story</span></h3>
-                            <button class="example-btn" id="loadExampleBtn">
-                                <i class="fas fa-lightbulb"></i> Load Example
-                            </button>
-                        </div>
-                        <textarea
-                            id="userStory"
-                            data-bug-report-placeholder="Describe the bug...
-
-Include what you did, what happened, and what you expected.
-Mention the app, environment, browser or device if you know them.
-For backend bugs, paste the failing request: a cURL, or the request and response."
-                            placeholder="Enter your user story here...
-
-Example format:
-As a [type of user],
-I want [an action or feature]
-So that [a benefit or value]
-
-Acceptance Criteria:
-- Criterion 1
-- Criterion 2"
-                            rows="10"
-                        ></textarea>
-                        <div class="textarea-footer">
-                            <span class="char-count" id="charCount">0 characters</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ClickUp Tab -->
-                <div class="tab-content" id="clickup-tab">
-                    <div class="card glass-card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-link"></i> Import from ClickUp</h3>
-                        </div>
-
-                        <!-- Token Setup Section -->
-                        <div id="clickupTokenSetup" class="form-group">
-                            <label for="clickupToken">
-                                <i class="fas fa-key"></i> ClickUp API Token
-                            </label>
-                            <div class="input-with-icon">
-                                <input
-                                    type="password"
-                                    id="clickupToken"
-                                    placeholder="Enter your ClickUp API token..."
-                                />
-                                <button type="button" class="toggle-password" id="togglePassword">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                            <small class="help-text">
-                                <i class="fas fa-info-circle"></i>
-                                Get your token from ClickUp Settings > Apps > API Token
-                            </small>
-                            <div class="token-actions">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="saveToken" checked>
-                                    <span class="checkmark"></span>
-                                    <span>Remember token for future use</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Token Saved Section -->
-                        <div id="clickupTokenSaved" class="token-saved-section" style="display: none;">
-                            <div class="token-status">
-                                <i class="fas fa-check-circle"></i>
-                                <div class="token-info">
-                                    <span class="token-badge">Token Saved</span>
-                                    <span class="token-hint">Your ClickUp API token is securely stored</span>
-                                </div>
-                            </div>
-                            <div class="token-manage">
-                                <button id="changeTokenBtn" class="btn-secondary btn-sm">
-                                    <i class="fas fa-edit"></i> Change
-                                </button>
-                                <button id="removeTokenBtn" class="btn-danger btn-sm">
-                                    <i class="fas fa-trash"></i> Remove
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="clickupTaskId">
-                                <i class="fas fa-hashtag"></i> Task ID or Custom ID
-                            </label>
-                            <input
-                                type="text"
-                                id="clickupTaskId"
-                                placeholder="e.g., 86a179p6f or TASK-123"
-                            />
-                            <small class="help-text">
-                                <i class="fas fa-info-circle"></i>
-                                Find the Task ID in the task URL
-                            </small>
-                        </div>
-
-                        <button id="fetchClickUpBtn" class="btn-primary">
-                            <span class="btn-text"><i class="fas fa-download"></i> Fetch Task</span>
-                            <span class="loader" style="display: none;"></span>
-                        </button>
-
-                        <div id="clickupPreview" class="preview-section" style="display: none;">
-                            <div class="preview-header">
-                                <i class="fas fa-eye"></i>
-                                <h4 data-bug-report="Fetched Task">Fetched User Story</h4>
-                            </div>
-                            <div id="clickupStoryPreview" class="story-preview"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Upload Tab -->
-                <div class="tab-content" id="upload-tab">
-                    <div class="card glass-card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-cloud-upload-alt"></i> Upload Markdown File</h3>
-                        </div>
-                        <div class="upload-area" id="uploadArea">
-                            <input type="file" id="fileInput" accept=".md" style="display: none;" />
-                            <div class="upload-placeholder">
-                                <div class="upload-icon">
-                                    <i class="fas fa-file-upload"></i>
-                                </div>
-                                <p class="upload-title">Drag & drop your file here</p>
-                                <p class="upload-or">or</p>
-                                <button id="browseBtn" class="btn-secondary">
-                                    <i class="fas fa-folder-open"></i> Browse Files
-                                </button>
-                                <p class="upload-hint">Accepts .md files (max 5MB)</p>
-                            </div>
-                        </div>
-                        <div id="filePreview" class="preview-section" style="display: none;">
-                            <div class="preview-header">
-                                <i class="fas fa-file-alt"></i>
-                                <h4>File Content</h4>
-                            </div>
-                            <div class="file-info" id="fileInfo"></div>
-                            <div id="fileStoryPreview" class="story-preview"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 2: Configuration Section -->
-            <section class="config-section" data-section="2">
-                <div class="section-header">
-                    <h2><i class="fas fa-cog"></i> Step 2: Configure Generation</h2>
-                    <p class="section-desc" data-bug-report="Customize how your bug report is generated (optional)">Customize how your test cases are generated (optional)</p>
-                </div>
-
-                <div class="config-grid">
-                    <!-- Test Case Format Card -->
-                    <div class="card glass-card" data-only-mode="testCases">
-                        <div class="card-header">
-                            <h3><i class="fas fa-table-list"></i> Test Case Format</h3>
-                            <span class="optional-badge">Fixed</span>
-                        </div>
-                        <p class="format-intro">Follows the user-story-test-case-generator skill: an analysis, then these columns with one row per step.</p>
-                        <ol class="format-list">
-                            <li>Test Case ID</li>
-                            <li>Title</li>
-                            <li>Module / Feature</li>
-                            <li>Preconditions</li>
-                            <li>Tags</li>
-                            <li>Steps</li>
-                            <li>Results</li>
-                            <li>Type of Test Case</li>
-                            <li>Priority <small>(kept)</small></li>
-                            <li>Estimate</li>
-                            <li>Owner</li>
-                            <li>Automation Status</li>
-                            <li>State</li>
-                        </ol>
-                    </div>
-
-                    <!-- Bug Report Format Card -->
-                    <div class="card glass-card" data-only-mode="bugReport" hidden>
-                        <div class="card-header">
-                            <h3><i class="fas fa-bug"></i> Bug Report Format</h3>
-                            <span class="optional-badge">Fixed</span>
-                        </div>
-                        <p class="format-intro">Follows the bug-report-generator skill: these sections and nothing else.</p>
-                        <ol class="format-list">
-                            <li>Title</li>
-                            <li>Link</li>
-                            <li>Environment</li>
-                            <li>Steps to Reproduce</li>
-                            <li>Actual Result</li>
-                            <li>Expected Result</li>
-                            <li>API Evidence <small>(backend bugs only)</small></li>
-                            <li>Severity</li>
-                            <li>Priority</li>
-                        </ol>
-                    </div>
-
-                    <!-- Preferences Card -->
-                    <div class="card glass-card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-sliders-h"></i> Preferences</h3>
-                            <span class="optional-badge">Optional</span>
-                        </div>
-                        <textarea
-                            id="preferences"
-                            data-bug-report-placeholder="Add specific requirements...
-Examples:
-- Write the report in Arabic
-- App: Acme Shop web v2.3
-- Test environment: UAT"
-                            placeholder="Add specific requirements...
-Examples:
-- Owner: Jane Doe
-- Use AUTH-TC- as the ID prefix
-- Focus on security and API coverage
-- Write the test cases in Arabic"
-                            rows="6"
-                        ></textarea>
-                    </div>
-                </div>
-
-                <!-- AI Provider Selection -->
                 <div class="card glass-card provider-card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-robot"></i> AI Provider</h3>
-                    </div>
                     <div class="provider-selector">
                         <div class="provider-options" id="providerOptions">
-                            <label class="provider-option">
-                                <input type="radio" name="provider" value="anthropic" checked>
-                                <span class="provider-tile">
-                                    <span class="provider-icon anthropic">
-                                        <i class="fas fa-brain"></i>
-                                    </span>
-                                    <span class="provider-details">
-                                        <span class="provider-name">Claude Haiku 5.5</span>
-                                        <span class="provider-company">Anthropic - Fast & low-cost Claude</span>
-                                    </span>
-                                    <span class="provider-check">
-                                        <i class="fas fa-check-circle"></i>
-                                    </span>
-                                </span>
-                            </label>
-                            <label class="provider-option">
-                                <input type="radio" name="provider" value="gemini">
-                                <span class="provider-tile">
-                                    <span class="provider-icon gemini">
-                                        <i class="fas fa-gem"></i>
-                                    </span>
-                                    <span class="provider-details">
-                                        <span class="provider-name">Gemini 3.8 Flash</span>
-                                        <span class="provider-company">Google - Latest stable Flash model</span>
-                                    </span>
-                                    <span class="provider-check">
-                                        <i class="fas fa-check-circle"></i>
-                                    </span>
-                                </span>
-                            </label>
                             <label class="provider-option">
                                 <input type="radio" name="provider" value="groq">
                                 <span class="provider-tile">
@@ -429,6 +148,52 @@ Examples:
                                         <i class="fas fa-check-circle"></i>
                                     </span>
                                     <span class="free-badge">FREE</span>
+                                </span>
+                            </label>
+                            <label class="provider-option">
+                                <input type="radio" name="provider" value="mistral">
+                                <span class="provider-tile">
+                                    <span class="provider-icon mistral">
+                                        <i class="fas fa-wind"></i>
+                                    </span>
+                                    <span class="provider-details">
+                                        <span class="provider-name">Ministral 14B</span>
+                                        <span class="provider-company">Mistral - Free European open model</span>
+                                    </span>
+                                    <span class="provider-check">
+                                        <i class="fas fa-check-circle"></i>
+                                    </span>
+                                    <span class="free-badge">FREE</span>
+                                </span>
+                            </label>
+                            <label class="provider-option">
+                                <input type="radio" name="provider" value="anthropic" checked>
+                                <span class="provider-tile">
+                                    <span class="provider-icon anthropic">
+                                        <i class="fas fa-brain"></i>
+                                    </span>
+                                    <span class="provider-details">
+                                        <span class="provider-name">Claude Haiku 5.5</span>
+                                        <span class="provider-company">Anthropic - Fast & low-cost Claude</span>
+                                    </span>
+                                    <span class="provider-check">
+                                        <i class="fas fa-check-circle"></i>
+                                    </span>
+                                </span>
+                            </label>
+                            <label class="provider-option">
+                                <input type="radio" name="provider" value="gemini">
+                                <span class="provider-tile">
+                                    <span class="provider-icon gemini">
+                                        <i class="fas fa-gem"></i>
+                                    </span>
+                                    <span class="provider-details">
+                                        <span class="provider-name">Gemini 3.8 Flash</span>
+                                        <span class="provider-company">Google - Latest stable Flash model</span>
+                                    </span>
+                                    <span class="provider-check">
+                                        <i class="fas fa-check-circle"></i>
+                                    </span>
                                 </span>
                             </label>
                             <label class="provider-option">
@@ -518,22 +283,430 @@ Examples:
                 </div>
             </section>
 
+            <!-- Step 2: Input Section -->
+            <section class="input-section" data-section="2">
+                <div class="section-header">
+                    <h2><i class="fas fa-file-alt"></i> <span data-bug-report="Step 2: Describe the Bug">Step 2: Provide Your User Story</span></h2>
+                    <p class="section-desc" data-bug-report="Choose how you'd like to provide the issue description">Choose how you'd like to input your user story</p>
+                </div>
+
+                <!-- Input Method Cards -->
+                <div class="input-methods">
+                    <button class="method-card active" data-tab="manual">
+                        <div class="method-icon">
+                            <i class="fas fa-keyboard"></i>
+                        </div>
+                        <div class="method-info">
+                            <h3>Manual Input</h3>
+                            <p data-bug-report="Type or paste the issue description">Type or paste your user story directly</p>
+                        </div>
+                    </button>
+                    <button class="method-card" data-tab="clickup">
+                        <div class="method-icon">
+                            <i class="fas fa-link"></i>
+                        </div>
+                        <div class="method-info">
+                            <h3>ClickUp Import</h3>
+                            <p>Fetch from ClickUp task</p>
+                        </div>
+                    </button>
+                    <button class="method-card" data-tab="azure">
+                        <div class="method-icon">
+                            <i class="fab fa-microsoft"></i>
+                        </div>
+                        <div class="method-info">
+                            <h3>Azure DevOps</h3>
+                            <p>Fetch from a work item</p>
+                        </div>
+                    </button>
+                    <button class="method-card" data-tab="upload">
+                        <div class="method-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <div class="method-info">
+                            <h3>File Upload</h3>
+                            <p>Upload a markdown file</p>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Manual Input Tab -->
+                <div class="tab-content active" id="manual-tab">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-edit"></i> <span data-bug-report="Issue Description">User Story</span></h3>
+                            <button class="example-btn" id="loadExampleBtn">
+                                <i class="fas fa-lightbulb"></i> Load Example
+                            </button>
+                        </div>
+                        <textarea
+                            id="userStory"
+                            data-bug-report-placeholder="Describe the bug...
+
+Include what you did, what happened, and what you expected.
+Mention the app, environment, browser or device if you know them.
+For backend bugs, paste the failing request: a cURL, or the request and response."
+                            placeholder="Enter your user story here...
+
+Example format:
+As a [type of user],
+I want [an action or feature]
+So that [a benefit or value]
+
+Acceptance Criteria:
+- Criterion 1
+- Criterion 2"
+                            rows="10"
+                        ></textarea>
+                        <div class="textarea-footer">
+                            <span class="char-count" id="charCount">0 characters</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ClickUp Tab -->
+                <div class="tab-content" id="clickup-tab">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-link"></i> Import from ClickUp</h3>
+                        </div>
+
+                        <div class="token-field" id="clickupTokenField">
+                            <!-- Token Setup Section -->
+                            <div class="form-group token-setup">
+                                <label for="clickupToken">
+                                    <i class="fas fa-key"></i> ClickUp API Token
+                                </label>
+                                <div class="input-with-icon">
+                                    <input
+                                        type="password"
+                                        id="clickupToken"
+                                        class="token-input"
+                                        placeholder="Enter your ClickUp API token..."
+                                    />
+                                    <button type="button" class="toggle-password" aria-label="Show or hide the token">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <small class="help-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    Get your token from ClickUp Settings > Apps > API Token
+                                </small>
+                                <div class="token-actions">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" class="token-remember" checked>
+                                        <span class="checkmark"></span>
+                                        <span>Remember token for future use</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Token Saved Section -->
+                            <div class="token-saved-section" style="display: none;">
+                                <div class="token-status">
+                                    <i class="fas fa-check-circle"></i>
+                                    <div class="token-info">
+                                        <span class="token-badge">Token Saved</span>
+                                        <span class="token-hint">Your ClickUp API token is securely stored</span>
+                                    </div>
+                                </div>
+                                <div class="token-manage">
+                                    <button class="btn-secondary btn-sm token-change">
+                                        <i class="fas fa-edit"></i> Change
+                                    </button>
+                                    <button class="btn-danger btn-sm token-remove">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="clickupTaskId">
+                                <i class="fas fa-hashtag"></i> Task ID or Custom ID
+                            </label>
+                            <input
+                                type="text"
+                                id="clickupTaskId"
+                                placeholder="e.g., 86a179p6f or TASK-123"
+                            />
+                            <small class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                Find the Task ID in the task URL
+                            </small>
+                        </div>
+
+                        <button id="fetchClickUpBtn" class="btn-primary">
+                            <span class="btn-text"><i class="fas fa-download"></i> Fetch Task</span>
+                            <span class="loader" style="display: none;"></span>
+                        </button>
+
+                        <div id="clickupPreview" class="preview-section" style="display: none;">
+                            <div class="preview-header">
+                                <i class="fas fa-eye"></i>
+                                <h4 data-bug-report="Fetched Task">Fetched User Story</h4>
+                            </div>
+                            <div id="clickupStoryPreview" class="story-preview"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Azure DevOps Tab -->
+                <div class="tab-content" id="azure-tab">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fab fa-microsoft"></i> Import from Azure DevOps</h3>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="azureOrgUrl">
+                                <i class="fas fa-building"></i> Organization URL
+                            </label>
+                            <input
+                                type="url"
+                                id="azureOrgUrl"
+                                placeholder="https://dev.azure.com/your-org"
+                            />
+                        </div>
+
+                        <div class="token-field" id="azureTokenField">
+                            <div class="form-group token-setup">
+                                <label for="azureToken">
+                                    <i class="fas fa-key"></i> Personal Access Token
+                                </label>
+                                <div class="input-with-icon">
+                                    <input
+                                        type="password"
+                                        id="azureToken"
+                                        class="token-input"
+                                        placeholder="Enter your Azure DevOps personal access token..."
+                                        autocomplete="off"
+                                    />
+                                    <button type="button" class="toggle-password" aria-label="Show or hide the token">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <small class="help-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    Create one in Azure DevOps under User settings > Personal access tokens, with the Work Items (Read) scope
+                                </small>
+                                <div class="token-actions">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" class="token-remember" checked>
+                                        <span class="checkmark"></span>
+                                        <span>Remember token for future use</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="token-saved-section" style="display: none;">
+                                <div class="token-status">
+                                    <i class="fas fa-check-circle"></i>
+                                    <div class="token-info">
+                                        <span class="token-badge">Token Saved</span>
+                                        <span class="token-hint">Your Azure DevOps token is saved in this browser</span>
+                                    </div>
+                                </div>
+                                <div class="token-manage">
+                                    <button class="btn-secondary btn-sm token-change">
+                                        <i class="fas fa-edit"></i> Change
+                                    </button>
+                                    <button class="btn-danger btn-sm token-remove">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="azureWorkItemId">
+                                <i class="fas fa-hashtag"></i> Work Item ID or Link
+                            </label>
+                            <input
+                                type="text"
+                                id="azureWorkItemId"
+                                placeholder="e.g., 1234 or the work item's link"
+                            />
+                            <small class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                Imports the title, description and acceptance criteria (repro steps for a bug)
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="azureIncludeComments" checked>
+                                <span class="checkmark"></span>
+                                <span>Include comments: later decisions in the discussion can change the rules</span>
+                            </label>
+                        </div>
+
+                        <button id="fetchAzureBtn" class="btn-primary">
+                            <span class="btn-text"><i class="fas fa-download"></i> Fetch Work Item</span>
+                            <span class="loader" style="display: none;"></span>
+                        </button>
+
+                        <div id="azurePreview" class="preview-section" style="display: none;">
+                            <div class="preview-header">
+                                <i class="fas fa-eye"></i>
+                                <h4 data-bug-report="Fetched Work Item">Fetched User Story</h4>
+                            </div>
+                            <div class="file-info" id="azureItemInfo"></div>
+                            <div id="azureStoryPreview" class="story-preview"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Tab -->
+                <div class="tab-content" id="upload-tab">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-cloud-upload-alt"></i> Upload Markdown File</h3>
+                        </div>
+                        <div class="upload-area" id="uploadArea">
+                            <input type="file" id="fileInput" accept=".md" style="display: none;" />
+                            <div class="upload-placeholder">
+                                <div class="upload-icon">
+                                    <i class="fas fa-file-upload"></i>
+                                </div>
+                                <p class="upload-title">Drag & drop your file here</p>
+                                <p class="upload-or">or</p>
+                                <button id="browseBtn" class="btn-secondary">
+                                    <i class="fas fa-folder-open"></i> Browse Files
+                                </button>
+                                <p class="upload-hint">Accepts .md files (max 5MB)</p>
+                            </div>
+                        </div>
+                        <div id="filePreview" class="preview-section" style="display: none;">
+                            <div class="preview-header">
+                                <i class="fas fa-file-alt"></i>
+                                <h4>File Content</h4>
+                            </div>
+                            <div class="file-info" id="fileInfo"></div>
+                            <div id="fileStoryPreview" class="story-preview"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Configuration Section -->
+            <section class="config-section" data-section="3">
+                <div class="section-header">
+                    <h2><i class="fas fa-cog"></i> Step 3: Configure Generation</h2>
+                    <p class="section-desc" data-bug-report="Customize how your bug report is generated (optional)" data-checklist="Customize how your checklist is generated (optional)">Customize how your test cases are generated (optional)</p>
+                </div>
+
+                <div class="config-grid">
+                    <!-- Test Case Format Card -->
+                    <div class="card glass-card" data-only-mode="testCases">
+                        <div class="card-header">
+                            <h3><i class="fas fa-table-list"></i> Test Case Format</h3>
+                            <span class="optional-badge">Fixed</span>
+                        </div>
+                        <p class="format-intro">Follows the user-story-test-case-generator skill: an analysis, then these columns with one row per step.</p>
+                        <ol class="format-list">
+                            <li>Test Case ID</li>
+                            <li>Title</li>
+                            <li>Module / Feature</li>
+                            <li>Preconditions</li>
+                            <li>Tags</li>
+                            <li>Steps</li>
+                            <li>Results</li>
+                            <li>Type of Test Case</li>
+                            <li>Priority <small>(kept)</small></li>
+                            <li>Estimate</li>
+                            <li>Owner</li>
+                            <li>Automation Status</li>
+                            <li>State</li>
+                        </ol>
+                    </div>
+
+                    <!-- Checklist Format Card -->
+                    <div class="card glass-card" data-only-mode="checklist" hidden>
+                        <div class="card-header">
+                            <h3><i class="fas fa-clipboard-check"></i> Checklist Format</h3>
+                            <span class="optional-badge">Fixed</span>
+                        </div>
+                        <p class="format-intro">One check per rule in the story, each traced to the story lines it verifies. Lines with no check are flagged so none is missed.</p>
+                        <ol class="format-list">
+                            <li>Check ID</li>
+                            <li>Section</li>
+                            <li>Check</li>
+                            <li>Expected Result</li>
+                            <li>Story Lines</li>
+                            <li>Priority</li>
+                            <li>Status <small>(Pass / Fail, marked by you)</small></li>
+                            <li>Notes</li>
+                        </ol>
+                    </div>
+
+                    <!-- Bug Report Format Card -->
+                    <div class="card glass-card" data-only-mode="bugReport" hidden>
+                        <div class="card-header">
+                            <h3><i class="fas fa-bug"></i> Bug Report Format</h3>
+                            <span class="optional-badge">Fixed</span>
+                        </div>
+                        <p class="format-intro">Follows the bug-report-generator skill: these sections and nothing else.</p>
+                        <ol class="format-list">
+                            <li>Title</li>
+                            <li>Link</li>
+                            <li>Environment</li>
+                            <li>Steps to Reproduce</li>
+                            <li>Actual Result</li>
+                            <li>Expected Result</li>
+                            <li>API Evidence <small>(backend bugs only)</small></li>
+                            <li>Severity</li>
+                            <li>Priority</li>
+                        </ol>
+                    </div>
+
+                    <!-- Preferences Card -->
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-sliders-h"></i> Preferences</h3>
+                            <span class="optional-badge">Optional</span>
+                        </div>
+                        <textarea
+                            id="preferences"
+                            data-bug-report-placeholder="Add specific requirements...
+Examples:
+- Write the report in Arabic
+- App: Acme Shop web v2.3
+- Test environment: UAT"
+                            data-checklist-placeholder="Add specific requirements...
+Examples:
+- Add checks for the mobile layout
+- Skip the admin screens
+- Write the checklist in Arabic"
+                            placeholder="Add specific requirements...
+Examples:
+- Owner: Jane Doe
+- Use AUTH-TC- as the ID prefix
+- Focus on security and API coverage
+- Write the test cases in Arabic"
+                            rows="6"
+                        ></textarea>
+                    </div>
+                </div>
+
+            </section>
+
             <!-- Generate Button -->
             <section class="generate-section">
                 <button id="generateBtn" class="generate-btn">
                     <span class="btn-text">
                         <i class="fas fa-magic"></i>
-                        <span data-bug-report="Generate Bug Report">Generate Test Cases</span>
+                        <span data-bug-report="Generate Bug Report" data-checklist="Generate Checklist">Generate Test Cases</span>
                     </span>
                     <span class="loader" style="display: none;"></span>
                 </button>
-                <p class="generate-hint" data-bug-report="AI will turn your issue description into one clear, reproducible bug report">AI will analyze your user story and create comprehensive test cases</p>
+                <p class="generate-hint" data-bug-report="AI will turn your issue description into one clear, reproducible bug report" data-checklist="AI will turn every line of your user story into checks you mark Pass or Fail">AI will analyze your user story and create comprehensive test cases</p>
             </section>
 
-            <!-- Step 4: Output Section -->
-            <section class="output-section" id="outputSection" style="display: none;" data-section="4">
+            <!-- Step 5: Output Section -->
+            <section class="output-section" id="outputSection" style="display: none;" data-section="5">
                 <div class="section-header">
-                    <h2><i class="fas fa-check-circle"></i> <span data-bug-report="Generated Bug Report">Generated Test Cases</span></h2>
+                    <h2><i class="fas fa-check-circle"></i> <span data-bug-report="Generated Bug Report" data-checklist="Manual Test Checklist">Generated Test Cases</span></h2>
                     <div class="export-actions">
                         <button id="copyBtn" class="btn-icon" title="Copy to clipboard">
                             <i class="fas fa-copy"></i>
@@ -547,6 +720,9 @@ Examples:
                         <button id="downloadCsvBtn" class="btn-icon" title="Download CSV">
                             <i class="fas fa-file-csv"></i>
                         </button>
+                        <button id="downloadPdfBtn" class="btn-icon" title="Download PDF" data-only-mode="checklist" hidden>
+                            <i class="fas fa-file-pdf"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -554,7 +730,7 @@ Examples:
                     <div class="output-toolbar">
                         <div class="output-tabs">
                             <button class="output-tab active" data-view="formatted">
-                                <i class="fas fa-list-alt"></i> <span data-bug-report="Report">Formatted</span>
+                                <i class="fas fa-list-alt"></i> <span data-bug-report="Report" data-checklist="Checklist">Formatted</span>
                             </button>
                             <button class="output-tab" data-view="table">
                                 <i class="fas fa-table"></i> Table
@@ -604,6 +780,9 @@ Examples:
             <span class="notification-message"></span>
         </div>
     </div>
+
+    <!-- Filled only while the checklist PDF prints -->
+    <div id="printReport" class="print-report"></div>
 
     <script src="app.js"></script>
 </body>

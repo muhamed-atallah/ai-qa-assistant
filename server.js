@@ -61,6 +61,11 @@ const openrouter = process.env.OPENROUTER_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENROUTER_API_KEY, baseURL: 'https://openrouter.ai/api/v1' })
   : null;
 
+// Initialize Mistral client - uses OpenAI-compatible API
+const mistral = process.env.MISTRAL_API_KEY
+  ? new OpenAI({ apiKey: process.env.MISTRAL_API_KEY, baseURL: 'https://api.mistral.ai/v1' })
+  : null;
+
 // Available models configuration
 const AI_MODELS = {
   anthropic: {
@@ -79,19 +84,30 @@ const AI_MODELS = {
     name: 'GPT-OSS 120B',
     model: 'openai/gpt-oss-120b',
     provider: 'Groq',
-    description: 'Free & ultra-fast flagship'
+    description: 'Free & ultra-fast flagship',
+    free: true
   },
   qwen: {
     name: 'Qwen 3.8 27B',
     model: 'qwen/qwen3.8-27b',
     provider: 'Groq',
-    description: 'Zero-cost reasoning powerhouse'
+    description: 'Zero-cost reasoning powerhouse',
+    free: true
   },
   gptoss20b: {
     name: 'GPT-OSS 20B',
     model: 'openai/gpt-oss-20b',
     provider: 'Groq',
-    description: 'Free & fastest lightweight model'
+    description: 'Free & fastest lightweight model',
+    free: true
+  },
+  // Mistral's free plan serves the Ministral models; Medium and Small need a paid plan
+  mistral: {
+    name: 'Ministral 14B',
+    model: 'ministral-14b-2512',
+    provider: 'Mistral',
+    description: 'Free European open model',
+    free: true
   },
   // Direct to xAI when its key is set, otherwise through OpenRouter
   grok: process.env.XAI_API_KEY
@@ -125,15 +141,19 @@ const AI_MODELS = {
 };
 
 // Providers reached through an OpenAI-compatible chat completions API
-const CHAT_COMPLETION_CLIENTS = { Groq: groq, xAI: xai, OpenRouter: openrouter };
+const CHAT_COMPLETION_CLIENTS = { Groq: groq, xAI: xai, OpenRouter: openrouter, Mistral: mistral };
 
 const PROVIDER_API_KEYS = {
   Anthropic: 'ANTHROPIC_API_KEY',
   Google: 'GEMINI_API_KEY',
   Groq: 'GROQ_API_KEY',
   xAI: 'XAI_API_KEY',
-  OpenRouter: 'OPENROUTER_API_KEY'
+  OpenRouter: 'OPENROUTER_API_KEY',
+  Mistral: 'MISTRAL_API_KEY'
 };
+
+// OpenRouter mixes free and paid models; the free ones carry a ":free" suffix
+const isFreeOpenRouterModel = id => id.endsWith(':free') || id === 'openrouter/free';
 
 const isConfigured = id => Boolean(process.env[PROVIDER_API_KEYS[AI_MODELS[id].provider]]);
 
@@ -142,8 +162,10 @@ function requestError(status, message, details) {
   return Object.assign(new Error(message), { status, details, isRequestError: true });
 }
 
+const DEFAULT_PROVIDER = 'anthropic';
+
 // Calls the chosen provider and returns the model's text reply, model info and token usage
-async function generateText({ provider = 'anthropic', model: requestedModel, systemPrompt, userPrompt }) {
+async function generateText({ provider = DEFAULT_PROVIDER, model: requestedModel, systemPrompt, userPrompt }) {
   const selected = AI_MODELS[provider];
   if (!selected) {
     throw requestError(400, `Unknown provider: ${provider}`);
@@ -153,7 +175,7 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
   }
 
   if (selected.provider in CHAT_COMPLETION_CLIENTS) {
-    // Groq (FREE), xAI and OpenRouter. The OpenRouter picker sends its chosen model.
+    // Groq and Mistral (FREE), xAI and OpenRouter. The OpenRouter picker sends its chosen model.
     const model = provider === 'openrouter' ? requestedModel : selected.model;
     if (!model) {
       throw requestError(400, 'Choose an OpenRouter model first');
@@ -186,9 +208,9 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
     };
   }
 
-  if (provider === 'gemini') {
+  if (selected.provider === 'Google') {
     const result = await genAI.models.generateContent({
-      model: AI_MODELS.gemini.model,
+      model: selected.model,
       contents: userPrompt,
       config: { systemInstruction: systemPrompt }
     });
@@ -196,7 +218,7 @@ async function generateText({ provider = 'anthropic', model: requestedModel, sys
     return {
       text: result.text || '',
       truncated: result.candidates?.[0]?.finishReason === 'MAX_TOKENS',
-      modelInfo: AI_MODELS.gemini,
+      modelInfo: selected,
       usage: {
         input_tokens: result.usageMetadata?.promptTokenCount || 0,
         output_tokens: result.usageMetadata?.candidatesTokenCount || 0
@@ -244,7 +266,7 @@ const generationInfo = ({ modelInfo, usage, truncated }) => ({
   truncated
 });
 
-function sendGenerationError(res, error, failureMessage) {
+function sendGenerationError(res, error, failureMessage, providerId = DEFAULT_PROVIDER) {
   if (error.isRequestError) {
     return res.status(error.status).json({ error: error.message, message: error.details });
   }
@@ -254,8 +276,23 @@ function sendGenerationError(res, error, failureMessage) {
   const status = [402, 429, 503].includes(error.status) ? error.status : 500;
   res.status(status).json({
     error: failureMessage,
-    message: readableErrorMessage(error)
+    message: providerErrorMessage(error, providerId)
   });
+}
+
+// Says whose side a provider failure is on and what the user can do about it
+function providerErrorMessage(error, providerId) {
+  // OpenRouter names the host that actually failed, e.g. "Google AI Studio"
+  const providerName = error.error?.metadata?.provider_name || AI_MODELS[providerId]?.provider || 'The AI provider';
+  const detail = readableErrorMessage(error).replace(/\.?\s*$/, '.');
+
+  if (error.status === 429) {
+    return `${providerName} is limiting requests right now: ${detail} Try again later, or pick another model.`;
+  }
+  if (error.status >= 500) {
+    return `${providerName}'s servers had a problem: ${detail} This is on ${providerName}'s side, not caused by your input. Try again in a few minutes, or pick another model.`;
+  }
+  return detail;
 }
 
 // Workflow, coverage checklist and field conventions of the user-story-test-case-generator
@@ -265,7 +302,7 @@ const TEST_CASE_SYSTEM_PROMPT = `You are a Senior Software Tester / QA Lead. Giv
 
 Workflow:
 1. Read the whole input. Identify the actors, the feature or module, the trigger, the expected outcome, the data involved, and the system boundaries (frontend, backend, API, database, third parties).
-2. Decompose it into a numbered inventory of atomic, individually testable requirements (R1, R2, ...). Treat each line of each acceptance criterion and each business rule as its own requirement, and split a criterion that hides several (a field, its validation, its persistence, its permission). Every test case must trace back to at least one requirement.
+2. Decompose it into a numbered inventory of atomic, individually testable requirements (R1, R2, ...). Treat each line of each acceptance criterion and each business rule as its own requirement, and split a criterion that hides several (a field, its validation, its persistence, its permission). Every test case must trace back to at least one requirement. If the input ends with a "Comments:" section (the work item's discussion, oldest first), a comment that adds or changes a rule is a requirement too: where it changes an earlier rule, test the latest decision and record the change in the assumptions; where comments conflict with nothing settling it, test the latest and add an open question.
 3. For every requirement, walk the coverage checklist below and generate the applicable cases.
 4. Surface what the story does not say: hidden assumptions, ambiguities, missing or conflicting requirements, and risks. For each plausible but unstated behavior, add an implied test case (tag it "implied") and record the assumption. Turn genuinely unanswerable points into open questions.
 
@@ -359,7 +396,89 @@ ${preferences ? `Additional preferences:\n${preferences}\n` : ''}`;
     });
 
   } catch (error) {
-    sendGenerationError(res, error, 'Failed to generate test cases');
+    sendGenerationError(res, error, 'Failed to generate test cases', req.body.provider);
+  }
+});
+
+// A manual checklist the tester marks Pass or Fail on the running app. Every check cites the
+// numbered story lines it verifies, so the client can prove no line of the story was skipped.
+const CHECKLIST_SYSTEM_PROMPT = `You are a senior QA engineer. Turn the user story into a manual test checklist that a tester works through on the running app, marking each check Pass or Fail. The story arrives split into numbered lines (L1, L2, ...).
+
+Coverage rules. The point of the checklist is that no line of the story goes untested:
+1. Account for every line: either at least one check lists it in "lines", or it appears in "nonTestableLines" with a short reason. Never skip a line.
+2. Put a line in nonTestableLines only when it is a heading or label with no behavior in it, such as "Acceptance Criteria:", or a comment line with nothing to test (rule 6). A line that states a behavior, rule, limit, or time is always testable by hand: test a time limit just before and just after it (for example with a link or record older than the limit), and a rate limit by repeating the action past it. Never mark a line not testable because it needs waiting, setup, or special data; write the check and put the setup in it. The story statement ("As a ...", "I want ...", "So that ...") is testable too: cover the action and the benefit with an end-to-end check.
+3. Split a line that holds several rules into one check per rule; "8+ chars, 1 uppercase, 1 number" becomes three checks.
+4. For each rule, add the happy-path check and, where the rule can be broken, the negative or boundary check (just inside and just outside the limit).
+5. Every check lists at least one line. Do not add checks that no line asks for.
+6. The story may end with a "Comments:" section: the work item's discussion, oldest first, each comment under a line with its author and date. A comment can add a rule or change one stated earlier. When it changes one, write the check for the latest decision and list both the original line and the comment line; do not also check the replaced rule. When comments disagree and no later comment settles it, check the latest and add an open question. Author-and-date lines and comment lines with nothing to test (mentions, thanks, status notes such as "needs a design") go in nonTestableLines.
+
+Check conventions:
+- id: CL-001, CL-002, ... sequential.
+- section: the short name of the feature area or acceptance criterion the check belongs to. Keep the checks of one section together.
+- check: one thing the tester does in the app, imperative and specific, e.g. "Request a reset with an unregistered email".
+- expected: the observable result that means Pass (an exact message, screen, or state), never "works correctly".
+- lines: the IDs of the story lines the check verifies, e.g. ["L4"].
+- priority: High (core flow, security, or data loss), Medium, or Low.
+Keep every value short. If the story is in Arabic or mixes Arabic and English, write the checks in the story's language while keeping the JSON keys in English.
+
+Return only a JSON object in this shape:
+{
+  "storyTitle": "short name of the story",
+  "checks": [{ "id": "CL-001", "section": "...", "check": "...", "expected": "...", "lines": ["L4"], "priority": "High" }],
+  "nonTestableLines": [{ "line": "L5", "reason": "Section heading" }],
+  "openQuestions": ["a direct question for the story author where the story is ambiguous"]
+}
+The output must be valid JSON that parses as-is: no comments, no trailing commas, and no code or expressions.`;
+
+// Numbers the story's lines (L1, L2, ...) for the checklist to cite. Lines without a letter
+// or digit, such as "---", hold nothing to test and are left out.
+function numberStoryLines(story) {
+  return story
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => /[\p{L}\p{N}]/u.test(line))
+    .map((text, i) => ({ id: `L${i + 1}`, text }));
+}
+
+// Checklist generation endpoint. focusLines asks for checks on just those lines,
+// to fill gaps left by an earlier reply.
+app.post('/api/generate-checklist', async (req, res) => {
+  try {
+    const { userStory, focusLines, preferences, provider, model } = req.body;
+
+    if (typeof userStory !== 'string' || !userStory) {
+      return res.status(400).json({ error: 'User story is required' });
+    }
+
+    const storyLines = numberStoryLines(userStory);
+    if (storyLines.length === 0) {
+      return res.status(400).json({ error: 'The user story has no text to check' });
+    }
+
+    const focus = Array.isArray(focusLines)
+      ? storyLines.filter(line => focusLines.includes(line.id)).map(line => line.id)
+      : [];
+    if (Array.isArray(focusLines) && focus.length === 0) {
+      return res.status(400).json({ error: 'None of the lines to cover are in the story' });
+    }
+
+    const userPrompt = `Write a manual test checklist for the following user story, split into numbered lines:
+
+${storyLines.map(line => `${line.id}: ${line.text}`).join('\n')}
+
+${focus.length ? `Other checks already cover the rest of the story. These lines have no check yet: ${focus.join(', ')}. Write checks only for them, at least one per line; only a line that is just a heading may go in nonTestableLines instead.\n\n` : ''}${preferences ? `Additional preferences:\n${preferences}\n` : ''}`;
+
+    const result = await generateText({ provider, model, systemPrompt: CHECKLIST_SYSTEM_PROMPT, userPrompt });
+
+    res.json({
+      success: true,
+      checklist: result.text,
+      storyLines,
+      ...generationInfo(result)
+    });
+
+  } catch (error) {
+    sendGenerationError(res, error, 'Failed to generate checklist', req.body.provider);
   }
 });
 
@@ -423,12 +542,15 @@ ${preferences ? `Additional preferences:\n${preferences}\n` : ''}`;
     });
 
   } catch (error) {
-    sendGenerationError(res, error, 'Failed to generate bug report');
+    sendGenerationError(res, error, 'Failed to generate bug report', req.body.provider);
   }
 });
 
 // Google's SDK puts the raw JSON error body in the message; return just its text
 function readableErrorMessage(error) {
+  // OpenRouter gives the upstream provider's reason here, e.g. "rate-limited upstream"
+  const upstreamReason = error.error?.metadata?.raw;
+  if (typeof upstreamReason === 'string') return upstreamReason;
   try {
     return JSON.parse(error.message).error.message || error.message;
   } catch {
@@ -444,7 +566,7 @@ app.get('/api/providers', (req, res) => {
     provider: AI_MODELS[id].provider,
     description: AI_MODELS[id].description,
     available: true,
-    ...(AI_MODELS[id].provider === 'Groq' && { free: true })
+    ...(AI_MODELS[id].free && { free: true })
   }));
 
   res.json({ providers });
@@ -466,16 +588,26 @@ app.get('/api/openrouter/models', async (req, res) => {
       openRouterModelsCache = {
         fetchedAt: Date.now(),
         models: data
-          .filter(m => m.architecture?.output_modalities?.includes('text'))
+          // Text models only: the zero-priced Lyria music models also list text as an output
+          .filter(m => {
+            const outputs = m.architecture?.output_modalities || [];
+            return outputs.includes('text') && !outputs.includes('audio');
+          })
           .map(m => ({
             id: m.id,
             name: m.name,
             contextLength: m.context_length,
+            // OpenRouter caps max_tokens at this silently, so the picker shows it
+            maxOutput: m.top_provider?.max_completion_tokens || null,
+            free: isFreeOpenRouterModel(m.id),
+            // Free models are often withdrawn on a set date
+            expiresAt: m.expiration_date || null,
             // USD per 1M tokens; negative means the price varies per request
             inputPrice: Number(m.pricing?.prompt) * 1e6,
             outputPrice: Number(m.pricing?.completion) * 1e6
           }))
-          .sort((a, b) => a.name.localeCompare(b.name))
+          // Free models first, so they top the picker's list
+          .sort((a, b) => (b.free - a.free) || a.name.localeCompare(b.name))
       };
     }
 
@@ -548,6 +680,146 @@ app.post('/api/clickup/fetch-task', async (req, res) => {
   }
 });
 
+// Azure DevOps integration: like ClickUp's, the token comes from the UI with each request.
+// The organization URL is turned into the API base only for Azure DevOps hosts, so the
+// token is never sent anywhere else.
+function azureDevOpsBaseUrl(organizationUrl) {
+  if (typeof organizationUrl !== 'string' || !URL.canParse(organizationUrl)) return null;
+  const url = new URL(organizationUrl);
+  const isDevAzure = url.hostname === 'dev.azure.com';
+  const org = isDevAzure
+    ? url.pathname.split('/')[1]
+    : url.hostname.match(/^([a-z0-9-]+)\.visualstudio\.com$/)?.[1];
+  if (url.protocol !== 'https:' || !/^[a-z0-9][a-z0-9-]*$/i.test(org ?? '')) return null;
+  return isDevAzure ? `https://dev.azure.com/${org}` : `https://${org}.visualstudio.com`;
+}
+
+// The rich-text fields that hold a work item's story, in the order they're imported
+const WORK_ITEM_SECTIONS = [
+  ['System.Description', 'Description'],
+  ['Microsoft.VSTS.Common.AcceptanceCriteria', 'Acceptance Criteria'],
+  ['Microsoft.VSTS.TCM.ReproSteps', 'Repro Steps']
+];
+
+function workItemSummary(workItem, baseUrl) {
+  const { fields } = workItem;
+  return {
+    id: workItem.id,
+    type: fields['System.WorkItemType'],
+    title: fields['System.Title'],
+    state: fields['System.State'],
+    url: `${baseUrl}/_workitems/edit/${workItem.id}`,
+    sections: WORK_ITEM_SECTIONS.filter(([name]) => fields[name]).map(([name, heading]) => ({
+      heading,
+      text: fields[name],
+      // Organizations can switch these fields from HTML to Markdown
+      format: workItem.multilineFieldsFormat?.[name] === 'markdown' ? 'markdown' : 'html'
+    }))
+  };
+}
+
+const azureDevOpsHeaders = token => ({
+  Authorization: `Basic ${Buffer.from(`:${token}`).toString('base64')}`,
+  Accept: 'application/json'
+});
+
+// An Azure DevOps reply other than the data asked for, with the status to pass on
+class AzureDevOpsError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// [status, message] for a failed lookup. A bad token gets a 401, or a 203 or a redirect
+// to the sign-in page. An unknown organization gets a plain-text 404; Azure DevOps
+// explains the other failures (a missing work item, no access) in a JSON reply.
+async function azureDevOpsFailure(response, baseUrl, workItemId) {
+  if ([203, 302, 401].includes(response.status)) {
+    return [401, 'Azure DevOps rejected the token. Check that it hasn\'t expired, belongs to this organization and has the Work Items (Read) scope.'];
+  }
+  const isJson = response.headers.get('content-type')?.includes('application/json');
+  if (response.status === 404 && !isJson) {
+    return [404, `No Azure DevOps organization was found at ${baseUrl}`];
+  }
+  const reply = isJson ? await response.json() : {};
+  if (response.status === 403 || response.status === 404) {
+    return [response.status, reply.message || `Work item ${workItemId} wasn't found`];
+  }
+  return [502, reply.message || `Azure DevOps answered ${response.status} ${response.statusText}`];
+}
+
+// GETs an Azure DevOps API path for the request's organization, work item and token
+async function azureDevOpsGet(path, request) {
+  const response = await fetch(`${request.baseUrl}${path}`, {
+    headers: azureDevOpsHeaders(request.token),
+    redirect: 'manual'
+  });
+  if (response.status !== 200) {
+    throw new AzureDevOpsError(...await azureDevOpsFailure(response, request.baseUrl, request.workItemId));
+  }
+  return response.json();
+}
+
+// The work item's discussion, oldest first so later decisions come last. Comments are
+// usually Markdown; renderedText asks Azure DevOps for its HTML rendering of them.
+async function workItemComments(request, project) {
+  const comments = [];
+  let continuationToken;
+  do {
+    const query = new URLSearchParams({ 'api-version': '7.1-preview.4', '$top': '200', '$expand': 'renderedText' });
+    if (continuationToken) query.set('continuationToken', continuationToken);
+    const page = await azureDevOpsGet(
+      `/${encodeURIComponent(project)}/_apis/wit/workItems/${request.workItemId}/comments?${query}`, request);
+    comments.push(...page.comments);
+    continuationToken = page.continuationToken;
+  } while (continuationToken);
+
+  return comments
+    .sort((a, b) => a.createdDate.localeCompare(b.createdDate))
+    .map(comment => ({
+      author: comment.createdBy?.displayName ?? '',
+      date: comment.createdDate,
+      text: comment.renderedText || comment.text,
+      // The format comes as a name or, from some clients, its number (0 is Markdown)
+      format: !comment.renderedText && [0, 'markdown'].includes(comment.format) ? 'markdown' : 'html'
+    }));
+}
+
+app.post('/api/azure-devops/fetch-work-item', async (req, res) => {
+  const { organizationUrl, workItemId, token, includeComments } = req.body;
+  const baseUrl = azureDevOpsBaseUrl(organizationUrl);
+  if (!baseUrl) {
+    return res.status(400).json({ error: 'Use your organization URL, like https://dev.azure.com/your-org or https://your-org.visualstudio.com' });
+  }
+  if (!/^\d{1,10}$/.test(String(workItemId ?? ''))) {
+    return res.status(400).json({ error: 'The work item ID is a number, like 1234' });
+  }
+  if (typeof token !== 'string' || !token.trim()) {
+    return res.status(400).json({ error: 'A personal access token is required' });
+  }
+
+  const request = { baseUrl, workItemId: String(workItemId), token: token.trim() };
+  try {
+    const workItem = await azureDevOpsGet(`/_apis/wit/workitems/${request.workItemId}?api-version=7.1`, request);
+    // null, not [], when they weren't asked for, so the page doesn't report "0 comments"
+    const comments = includeComments === true
+      ? await workItemComments(request, workItem.fields['System.TeamProject'])
+      : null;
+    res.json({ success: true, ...workItemSummary(workItem, baseUrl), comments });
+  } catch (error) {
+    if (error instanceof AzureDevOpsError) {
+      return res.status(error.status).json({ error: 'Failed to fetch the work item from Azure DevOps', message: error.message });
+    }
+    console.error('Azure DevOps fetch error:', error);
+    // fetch reports network failures (unknown organization host, timeout) with a cause code
+    res.status(502).json({
+      error: 'Failed to fetch the work item from Azure DevOps',
+      message: error.cause?.code ? `Couldn't reach ${baseUrl} (${error.cause.code})` : error.message
+    });
+  }
+});
+
 // File upload endpoint
 app.post('/api/upload-story', upload.single('file'), async (req, res) => {
   try {
@@ -606,7 +878,7 @@ app.listen(PORT, () => {
   console.log(`🚀 AI QA Assistant running on http://localhost:${PORT}`);
   console.log(`📝 Available models:`);
   Object.keys(AI_MODELS).forEach(key => {
-    const isFree = AI_MODELS[key].provider === 'Groq' ? ' [FREE]' : '';
+    const isFree = AI_MODELS[key].free ? ' [FREE]' : '';
     console.log(`   - ${AI_MODELS[key].provider}: ${AI_MODELS[key].name} (${AI_MODELS[key].model || 'any model'})${isFree}`);
   });
 });
