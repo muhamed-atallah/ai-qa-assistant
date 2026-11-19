@@ -338,7 +338,7 @@ Field conventions:
 - steps: one discrete action per step, so a case usually has 3 to 6 steps (set up or navigate, act, then verify each observable outcome, such as the stored record or the email sent). Each step is imperative ("Enter ...", "Send POST ...", "Verify ...") and paired with its specific, verifiable expected result (an exact message, status code, stored state, or UI change), never "works correctly". The last step's result is the overall pass condition. Do not number the steps.
 - typeOfTestCase: one of Functional, UI, API, Database, Integration, Security, Performance, Validation, Negative, Boundary, Permission, Workflow, Usability, Compatibility, Smoke, Regression.
 - estimate: junior-paced manual execution time for that one case, including setup and one re-run on failure, e.g. "3m", "5m", "10m". Estimate generously.
-- owner: "Mohamed Atallah" unless the user names another owner.
+- owner: "QA Team" unless the user names another owner.
 - automationStatus: Not Automated, To Be Automated, Automated, or Not Applicable. Default To Be Automated; use Not Applicable for inherently manual cases.
 - state: Draft, Ready for Review, Approved, or Deprecated. Default Draft.
 
@@ -364,7 +364,7 @@ Return only a JSON object in this shape:
       "steps": [{ "step": "Navigate to the login page", "result": "Login form is displayed" }],
       "typeOfTestCase": "Functional",
       "estimate": "3m",
-      "owner": "Mohamed Atallah",
+      "owner": "QA Team",
       "automationStatus": "To Be Automated",
       "state": "Draft"
     }

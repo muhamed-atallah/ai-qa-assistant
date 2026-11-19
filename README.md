@@ -116,7 +116,7 @@ Pick the model that will write the result. Only models whose provider has an API
 
 #### Option 3: Azure DevOps Import
 1. Select the **Azure DevOps** card
-2. Check the Organization URL (e.g., `https://dev.azure.com/your-org` or `https://your-org.visualstudio.com`)
+2. Enter your Organization URL (e.g., `https://dev.azure.com/your-org` or `https://your-org.visualstudio.com`); the app remembers it after the first successful fetch
 3. Enter a Personal Access Token
    - Create one in Azure DevOps under User settings > Personal access tokens, with the **Work Items (Read)** scope
    - Like the ClickUp token, it is entered in the UI and never stored in `.env`; *Remember token for future use* (ticked by default) keeps it in this browser
@@ -136,7 +136,7 @@ A sample story is included in [`example-user-story.md`](example-user-story.md).
 ### Step 3: Configure generation
 
 **Preferences (Optional)**: Override the defaults for this run
-- Example: "Owner: QA Team", "Use the LOGIN- ID prefix", "Focus on security testing", "Write in Arabic"
+- Example: "Owner: Jane Doe" (the default owner is *QA Team*), "Use the LOGIN- ID prefix", "Focus on security testing", "Write in Arabic"
 
 ### Step 4: Generate and export
 
