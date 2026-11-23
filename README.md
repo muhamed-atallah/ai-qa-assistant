@@ -428,6 +428,11 @@ To modify the application:
 3. **Styling**: Modify `public/styles.css`
 4. **Client Logic**: Update `public/app.js`
 
+## Video Walkthrough (Arabic)
+
+- [AI QA Assistant: full step-by-step walkthrough](https://youtu.be/7R0ojT_96gM): test cases, checklists and bug reports from a user story
+- More videos on using AI in QA and software testing: [YouTube channel](https://www.youtube.com/@MuhamedAliAtallah)
+
 ## License
 
 MIT
